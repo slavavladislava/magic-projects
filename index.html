@@ -1147,6 +1147,53 @@ textarea.minp{resize:vertical;min-height:58px;line-height:1.6}
 .email-btn:hover{background:linear-gradient(135deg,rgba(119,48,255,0.55),rgba(216,64,184,0.45));
   box-shadow:0 0 24px rgba(119,48,255,0.25)}
 
+
+/* ── LIGHTER THEME ── */
+body{background:#0a0614}
+.t-left{background:rgba(15,10,35,0.6)}
+.ecard{background:rgba(20,15,40,0.85)}
+.prow{background:rgba(20,15,40,0.7)}
+.surf{background:#111828}
+/* brighter text globally */
+:root{
+  --ink:#ffffff;
+  --ink2:rgba(230,218,255,0.88);
+  --ink3:rgba(200,182,255,0.65);
+  --ink4:rgba(170,150,255,0.22);
+}
+.ec-name{color:#fff!important;font-size:16px!important}
+.prow-name{color:#fff!important;font-size:13px!important;font-weight:700!important}
+.hero-title{color:#fff!important}
+.kpi-n{color:#fff}
+.clock{font-size:48px!important}
+.brand-name{font-size:13px!important}
+
+/* ── FREE PROJECT ── */
+.free-proj-label{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--ink2);
+  cursor:pointer;padding:8px 10px;background:rgba(32,232,200,0.05);
+  border:1px solid rgba(32,232,200,0.18);border-radius:7px}
+.free-proj-label input[type=checkbox]{accent-color:var(--cyan);width:14px;height:14px;cursor:pointer}
+.free-badge{font-size:8px;padding:2px 8px;border-radius:100px;
+  background:rgba(32,232,200,0.15);border:1px solid rgba(32,232,200,0.35);
+  color:var(--cyan);font-weight:700;letter-spacing:1px;white-space:nowrap}
+
+/* ── PROFIT LINE IN CARD ── */
+.ec-profit{display:flex;gap:12px;padding:6px 16px 10px;flex-wrap:wrap}
+.ec-profit-item{display:flex;flex-direction:column;gap:1px}
+.ec-profit-label{font-size:7px;color:var(--ink3);letter-spacing:1.5px;text-transform:uppercase}
+.ec-profit-val{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:500}
+
+/* ── ANALYTICS PERIOD FILTER ── */
+.ana-filter{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
+.ana-filter-label{font-size:9px;color:var(--ink3);letter-spacing:2px;text-transform:uppercase}
+.period-btn{background:none;border:1px solid var(--ink4);color:var(--ink3);font-size:8px;
+  font-family:'DM Sans',sans-serif;letter-spacing:1.5px;padding:5px 13px;cursor:pointer;
+  border-radius:100px;transition:all 0.2s;text-transform:uppercase;font-weight:600}
+.period-btn.on{border-color:rgba(130,60,255,0.5);color:var(--ink2);background:rgba(130,60,255,0.15)}
+.period-dates{display:flex;gap:6px;align-items:center}
+.period-inp{background:rgba(130,60,255,0.07);border:1px solid var(--ink4);border-radius:7px;
+  color:var(--ink2);font-size:10px;padding:4px 9px;outline:none;font-family:'DM Sans',sans-serif}
+
 </style>
 
 </head>
@@ -1400,8 +1447,8 @@ textarea.minp{resize:vertical;min-height:58px;line-height:1.6}
 
       <div class="m-quick">
 
-        <div class="mqf"><label>Дата</label><input id="fDate" type="date"></div>
-
+        <div class="mqf"><label>Дата начала</label><input id="fDate" type="date"></div>
+        <div class="mqf"><label>Дата окончания</label><input id="fDateEnd" type="date"></div>
         <div class="mqf"><label>Время</label><input id="fTime" type="time"></div>
 
         <div class="mqf"><label>Место</label><input id="fLoc" type="text" placeholder="Площадка / адрес" style="width:140px"></div>
@@ -1506,17 +1553,20 @@ textarea.minp{resize:vertical;min-height:58px;line-height:1.6}
         <div style="margin-top:12px">
 
           <div class="msec">Аванс получен ₽</div>
-
           <input class="minp" id="fAdvance" type="number" placeholder="0">
-
         </div>
-
+        <div style="margin-top:12px">
+          <div class="msec">Затраты ₽</div>
+          <input class="minp" id="fExpenses" type="number" placeholder="0">
+        </div>
+        <div style="margin-top:12px">
+          <label class="free-proj-label">
+            <input type="checkbox" id="fFree"> Бесплатный проект (без дохода)
+          </label>
+        </div>
       </div>
-
     </div>
-
   </div>
-
   <!-- ACCOUNTING -->
 
   <div class="mpane" id="pane-acct">
@@ -1872,8 +1922,14 @@ function evCard(ev){
     <div class="ec-prog">
       <div class="prog-bar"><div class="prog-fill" style="width:${comp}%;background:${s.c}"></div></div>
       <div class="prog-pct">${comp}%</div>
+      ${ev.isFree?'<span class="free-badge">БЕСПЛАТНЫЙ</span>':''}
     </div>
-    ${ev.updatedBy?`<div class="last-edit"><div class="last-edit-dot"></div>Изменил: ${ev.updatedBy.split("@")[0]}</div>`:""}
+    ${(ev.price||ev.expenses)?`<div class="ec-profit">
+      ${ev.price?`<div class="ec-profit-item"><div class="ec-profit-label">Оборот</div><div class="ec-profit-val" style="color:#c0f0c0">${fmt(ev.price)}₽</div></div>`:''}
+      ${ev.expenses?`<div class="ec-profit-item"><div class="ec-profit-label">Затраты</div><div class="ec-profit-val" style="color:#ffaa80">${fmt(ev.expenses)}₽</div></div>`:''}
+      ${(ev.price&&ev.expenses)?`<div class="ec-profit-item"><div class="ec-profit-label">Прибыль</div><div class="ec-profit-val" style="color:${Number(ev.price)-Number(ev.expenses)>=0?'var(--cyan)':'var(--fire)'}">${fmt(Number(ev.price)-Number(ev.expenses))}₽</div></div>`:''}
+    </div>`:''}
+    ${ev.updatedBy?`<div class="last-edit"><div class="last-edit-dot"></div>Изменил: <b>${ev.updatedBy.split("@")[0]}</b></div>`:""}
   </div>`;
 
 }
@@ -2055,100 +2111,105 @@ function renderNotifs(){
 // ── ANALYTICS ─────────────────────────────────────────────
 
 function renderAnalytics(){
+  // Period filter state
+  const period = window._anaPeriod || 'all';
+  const pFrom  = window._anaFrom  || null;
+  const pTo    = window._anaTo    || null;
 
-  const rev=evs.reduce((a,e)=>a+Number(e.price||0),0);
+  function inPeriod(ev){
+    if(period==='all') return true;
+    if(!ev.date) return false;
+    const d = new Date(ev.date);
+    const now = new Date();
+    if(period==='month'){const s=new Date(now.getFullYear(),now.getMonth(),1);const e=new Date(now.getFullYear(),now.getMonth()+1,0);return d>=s&&d<=e;}
+    if(period==='quarter'){const q=Math.floor(now.getMonth()/3);const s=new Date(now.getFullYear(),q*3,1);const e=new Date(now.getFullYear(),q*3+3,0);return d>=s&&d<=e;}
+    if(period==='year'){return d.getFullYear()===now.getFullYear();}
+    if(period==='custom'&&pFrom&&pTo){return d>=new Date(pFrom)&&d<=new Date(pTo);}
+    return true;
+  }
 
-  const adv=evs.reduce((a,e)=>a+Number(e.advance||0),0);
+  const filtered = evs.filter(inPeriod);
+  const paid     = filtered.filter(e=>!e.isFree);
+  const free     = filtered.filter(e=>e.isFree);
+  const rev      = paid.reduce((a,e)=>a+Number(e.price||0),0);
+  const expenses = filtered.reduce((a,e)=>a+Number(e.expenses||0),0);
+  const adv      = filtered.reduce((a,e)=>a+Number(e.advance||0),0);
+  const profit   = rev - expenses;
+  const closed   = filtered.filter(e=>autoSt(e)==='white').length;
 
-  const closed=evs.filter(e=>autoSt(e)==='white').length;
-
-  const bars=[];for(let i=5;i>=0;i--){let m=TODAY.getMonth()-i,y=TODAY.getFullYear();if(m<0){m+=12;y--;}bars.push({l:MOsh[m],c:evs.filter(e=>{if(!e.date)return false;const d=new Date(e.date);return d.getMonth()===m&&d.getFullYear()===y;}).length});}
-
+  const bars=[];for(let i=5;i>=0;i--){let m=TODAY.getMonth()-i,y=TODAY.getFullYear();if(m<0){m+=12;y--;}bars.push({l:MOsh[m],c:filtered.filter(e=>{if(!e.date)return false;const d=new Date(e.date);return d.getMonth()===m&&d.getFullYear()===y;}).length});}
   const maxB=Math.max(...bars.map(b=>b.c),1);
-
   const BCOLS=['#7730ff','#9034ea','#a838d4','#bc40be','#d040b8','#d840b8'];
-
-  const byCit={};evs.forEach(e=>{if(e.city)byCit[e.city]=(byCit[e.city]||0)+1;});
-
+  const byCit={};filtered.forEach(e=>{if(e.city)byCit[e.city]=(byCit[e.city]||0)+1;});
   const citS=Object.entries(byCit).sort((a,b)=>b[1]-a[1]).slice(0,5);const maxC=citS[0]?.[1]||1;
-
-  const byTyp={};evs.forEach(e=>{if(e.type)byTyp[e.type]=(byTyp[e.type]||0)+1;});
-
-  const sc={red:0,amber:0,pink:0,white:0};evs.forEach(e=>{const s=autoSt(e);sc[s]=(sc[s]||0)+1;});const maxS=Math.max(...Object.values(sc),1);
+  const byTyp={};filtered.forEach(e=>{if(e.types&&e.types.length)e.types.forEach(t=>{byTyp[t]=(byTyp[t]||0)+1;});else if(e.type)byTyp[e.type]=(byTyp[e.type]||0)+1;});
+  const sc={red:0,amber:0,pink:0,white:0};filtered.forEach(e=>{const s=autoSt(e);sc[s]=(sc[s]||0)+1;});const maxS=Math.max(...Object.values(sc),1);
 
   document.getElementById('anaContent').innerHTML=`
-
+  <div class="ana-filter">
+    <span class="ana-filter-label">Период:</span>
+    <button class="period-btn ${period==='all'?'on':''}"    onclick="setPeriod('all')">Все время</button>
+    <button class="period-btn ${period==='month'?'on':''}"  onclick="setPeriod('month')">Месяц</button>
+    <button class="period-btn ${period==='quarter'?'on':''}"onclick="setPeriod('quarter')">Квартал</button>
+    <button class="period-btn ${period==='year'?'on':''}"   onclick="setPeriod('year')">Год</button>
+    <button class="period-btn ${period==='custom'?'on':''}" onclick="setPeriod('custom')">Свой период</button>
+    ${period==='custom'?`<div class="period-dates">
+      <input class="period-inp" type="date" id="anaFrom" value="${pFrom||''}" onchange="setCustomPeriod()">
+      <span style="color:var(--ink3)">—</span>
+      <input class="period-inp" type="date" id="anaTo" value="${pTo||''}" onchange="setCustomPeriod()">
+    </div>`:''}
+  </div>
   <div class="ana-kpis">
-
-    <div class="aka"><div class="aka-icon">🎯</div><div class="aka-val">${evs.length}</div><div class="aka-lbl">Проектов всего</div></div>
-
-    <div class="aka"><div class="aka-icon">💰</div><div class="aka-val" style="font-size:20px">${fmt(rev)}₽</div><div class="aka-lbl">Оборот</div></div>
-
-    <div class="aka"><div class="aka-icon">📥</div><div class="aka-val" style="font-size:20px">${fmt(adv)}₽</div><div class="aka-lbl">Авансы</div></div>
-
-    <div class="aka"><div class="aka-icon">🤍</div><div class="aka-val" style="color:#c0b8ff">${closed}</div><div class="aka-lbl">Закрыто полностью</div></div>
-
+    <div class="aka"><div class="aka-icon">🎯</div><div class="aka-val">${filtered.length}</div><div class="aka-lbl">Проектов</div>
+      ${free.length?`<div style="font-size:9px;color:var(--cyan);margin-top:4px">${free.length} бесплатных</div>`:''}
+    </div>
+    <div class="aka"><div class="aka-icon">💰</div><div class="aka-val" style="font-size:18px">${fmt(rev)}₽</div><div class="aka-lbl">Оборот</div></div>
+    <div class="aka"><div class="aka-icon">📉</div><div class="aka-val" style="font-size:18px;color:#ffaa80">${fmt(expenses)}₽</div><div class="aka-lbl">Затраты</div></div>
+    <div class="aka"><div class="aka-icon">✨</div><div class="aka-val" style="font-size:18px;color:${profit>=0?'var(--cyan)':'var(--fire)'}">${fmt(profit)}₽</div><div class="aka-lbl">Чистая прибыль</div></div>
   </div>
-
   <div class="ana-row c2">
-
     <div class="cbox">
-
       <div class="cbox-t">Проекты по месяцам</div>
-
       <div class="bars">${bars.map((b,i)=>`<div class="bc"><div class="bf" style="height:${Math.round(b.c/maxB*76)}px;background:${BCOLS[i]}"></div><div class="bl">${b.l}</div></div>`).join('')}</div>
-
     </div>
-
     <div class="cbox">
-
-      <div class="cbox-t">По статусам</div>
-
-      ${[['red','Нет данных',sc.red],['amber','В работе',sc.amber],['pink','Завершён',sc.pink],['white','Закрыт',sc.white]].map(([s,l,c])=>`
-
-      <div class="sbr"><div class="sbd" style="background:${ST[s].c}"></div><div class="sbl">${l}</div>
-
-      <div class="sbw"><div class="sbf" style="width:${Math.round(c/maxS*100)}%;background:${ST[s].c}"></div></div>
-
-      <div class="sbn">${c}</div></div>`).join('')}
-
-    </div>
-
-  </div>
-
-  <div class="ana-row c3">
-
-    <div class="cbox">
-
       <div class="cbox-t">Финансы</div>
-
-      ${[['Оборот',rev,rev],['Авансы',adv,rev],['Остаток',rev-adv,rev]].map(([l,v,mx])=>`
-
-      <div class="hbr"><div class="hbl">${l}</div><div class="hbw"><div class="hbf" style="width:${Math.round(v/Math.max(mx,1)*100)}%;background:linear-gradient(90deg,var(--v),var(--v3))"></div></div><div class="hbv">${fmt(v)}₽</div></div>`).join('')}
-
+      ${[['Оборот',rev,rev,'#7730ff'],['Авансы',adv,rev,'#a838e8'],['Затраты',expenses,rev,'#ffaa80'],['Прибыль',profit,rev,profit>=0?'#20e8c8':'#ff3050']].map(([l,v,mx,col])=>`
+      <div class="hbr"><div class="hbl">${l}</div><div class="hbw"><div class="hbf" style="width:${Math.round(Math.abs(v)/Math.max(mx,1)*100)}%;background:${col}"></div></div><div class="hbv" style="color:${col}">${fmt(v)}₽</div></div>`).join('')}
     </div>
-
+  </div>
+  <div class="ana-row c3">
     <div class="cbox">
-
+      <div class="cbox-t">По статусам</div>
+      ${[['red','Нет данных',sc.red],['amber','В работе',sc.amber],['pink','Завершён',sc.pink],['white','Закрыт',sc.white]].map(([s,l,c])=>`
+      <div class="sbr"><div class="sbd" style="background:${ST[s].c}"></div><div class="sbl">${l}</div>
+      <div class="sbw"><div class="sbf" style="width:${Math.round(c/maxS*100)}%;background:${ST[s].c}"></div></div>
+      <div class="sbn">${c}</div></div>`).join('')}
+      ${free.length?`<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--ink4)">
+        <div class="sbr"><div class="sbd" style="background:var(--cyan)"></div><div class="sbl">Бесплатных</div><div class="sbn">${free.length}</div></div>
+      </div>`:''}
+    </div>
+    <div class="cbox">
       <div class="cbox-t">География</div>
-
       ${citS.length?citS.map(([c,n])=>`<div class="hbr"><div class="hbl">📍${c}</div><div class="hbw"><div class="hbf" style="width:${Math.round(n/maxC*100)}%;background:linear-gradient(90deg,var(--v2),var(--cyan))"></div></div><div class="hbv">${n}</div></div>`).join(''):'<div style="color:var(--ink3);font-size:10px;text-align:center;padding:18px 0">Укажи город в проектах</div>'}
-
     </div>
-
     <div class="cbox">
-
       <div class="cbox-t">Типы событий</div>
-
-      ${Object.keys(byTyp).length?Object.entries(byTyp).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([t,n])=>`<div class="hbr"><div class="hbl">${t}</div><div class="hbw"><div class="hbf" style="width:${Math.round(n/evs.length*100)}%;background:linear-gradient(90deg,var(--blue),var(--cyan))"></div></div><div class="hbv">${n}</div></div>`).join(''):'<div style="color:var(--ink3);font-size:10px;text-align:center;padding:18px 0">Укажи тип в проектах</div>'}
-
+      ${Object.keys(byTyp).length?Object.entries(byTyp).sort((a,b)=>b[1]-a[1]).slice(0,7).map(([t,n])=>`<div class="hbr"><div class="hbl">${t}</div><div class="hbw"><div class="hbf" style="width:${Math.round(n/filtered.length*100)}%;background:linear-gradient(90deg,var(--blue),var(--cyan))"></div></div><div class="hbv">${n}</div></div>`).join(''):'<div style="color:var(--ink3);font-size:10px;text-align:center;padding:18px 0">Укажи тип в проектах</div>'}
     </div>
-
   </div>`;
-
 }
 
-// ── NAV ────────────────────────────────────────────────────
+function setPeriod(p){
+  window._anaPeriod=p;
+  if(p!=='custom'){window._anaFrom=null;window._anaTo=null;}
+  renderAnalytics();
+}
+function setCustomPeriod(){
+  window._anaFrom=document.getElementById('anaFrom')?.value||null;
+  window._anaTo=document.getElementById('anaTo')?.value||null;
+  renderAnalytics();
+}
 
 function nav(v){
 
@@ -2185,7 +2246,8 @@ function mTab(t){
 function openNew(){
   editId=null;tTeam=[];tChks=[];tLinks=[];tComments=[];tAcct={};tReminders=[];curSt='red';
   document.getElementById('btnDel').style.display='none';
-  ['fName','fDate','fTime','fLoc','fPrice','fDesc','fOwner','fClient','fDeadline','fCity','fAdvance','fTags','fGuests'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['fName','fDate','fDateEnd','fTime','fLoc','fPrice','fExpenses','fDesc','fOwner','fClient','fDeadline','fCity','fAdvance','fTags','fGuests'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const ff=document.getElementById('fFree');if(ff)ff.checked=false;
   // reset type checkboxes
   document.querySelectorAll('#typeChecks input').forEach(c=>c.checked=false);
   // reset organizer radios
@@ -2203,7 +2265,8 @@ function openEdit(id){
   const sv=(id,v)=>{const el=document.getElementById(id);if(el)el.value=v||'';};
   sv('fName',ev.name);sv('fDate',ev.date);sv('fTime',ev.time);sv('fLoc',ev.location);sv('fPrice',ev.price);
   sv('fDesc',ev.desc);sv('fOwner',ev.owner);sv('fDeadline',ev.deadline);
-  sv('fCity',ev.city);sv('fAdvance',ev.advance);sv('fTags',ev.tags);sv('fGuests',ev.guests);
+  sv('fCity',ev.city);sv('fAdvance',ev.advance);sv('fTags',ev.tags);sv('fGuests',ev.guests);sv('fDateEnd',ev.dateEnd);sv('fExpenses',ev.expenses);
+  const ff=document.getElementById('fFree');if(ff)ff.checked=!!ev.isFree;
   // restore type checkboxes
   const types=ev.types||[];
   document.querySelectorAll('#typeChecks input').forEach(c=>c.checked=types.includes(c.value));
@@ -2303,7 +2366,7 @@ function saveEv(){
 
   const g=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};
 
-  const data={id:editId||Date.now().toString(),name:g('fName'),date:g('fDate'),time:g('fTime'),location:g('fLoc'),price:g('fPrice'),desc:g('fDesc'),owner:g('fOwner'),deadline:g('fDeadline'),city:g('fCity'),advance:g('fAdvance'),tags:g('fTags'),guests:g('fGuests'),status:curSt,team:[...tTeam],checks:tChks.map(c=>({...c})),acct:{...tAcct},links:[...tLinks],comments:[...tComments],types:getTypes(),client:getOrg(),reminders:tReminders.map(r=>({...r}))};
+  const data={id:editId||Date.now().toString(),name:g('fName'),date:g('fDate'),time:g('fTime'),location:g('fLoc'),price:g('fPrice'),desc:g('fDesc'),owner:g('fOwner'),deadline:g('fDeadline'),city:g('fCity'),advance:g('fAdvance'),tags:g('fTags'),guests:g('fGuests'),dateEnd:g('fDateEnd'),expenses:g('fExpenses'),isFree:document.getElementById('fFree')?.checked||false,status:curSt,team:[...tTeam],checks:tChks.map(c=>({...c})),acct:{...tAcct},links:[...tLinks],comments:[...tComments],types:getTypes(),client:getOrg(),reminders:tReminders.map(r=>({...r}))};
 
   closeModal();
 
