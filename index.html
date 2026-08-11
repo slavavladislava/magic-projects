@@ -14,6 +14,10 @@
 
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,300&family=Syne:wght@600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+
 <script type="module">
 
 // ── FIREBASE CONFIG ── замени эти значения своими ──────────
@@ -23,7 +27,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/fireba
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, signOut, onAuthStateChanged }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
-import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, serverTimestamp }
+import { getFirestore, collection, doc, setDoc, deleteDoc, getDoc, getDocs, onSnapshot, serverTimestamp, query, where }
 
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
@@ -43,6 +47,8 @@ const ALLOWED_EMAILS = [
   "mavrenkovaveronika@gmail.com"
 ];
 
+window.ALLOWED_EMAILS = ALLOWED_EMAILS;
+
 // ── INIT ────────────────────────────────────────────────────
 
 const app  = initializeApp(firebaseConfig);
@@ -56,6 +62,10 @@ const provider = new GoogleAuthProvider();
 let currentUser = null;
 
 let unsubscribeProjects = null;
+
+let unsubscribeClients = null;
+
+let unsubscribeTasks = null;
 
 // ── AUTH STATE ───────────────────────────────────────────────
 
@@ -85,13 +95,21 @@ onAuthStateChanged(auth, user => {
 
     document.getElementById('userName').textContent  = user.displayName || user.email.split('@')[0];
 
+    loadUserRole(user.email);
+
     subscribeToProjects();
+
+    subscribeToTasks();
 
   } else {
 
     currentUser = null;
 
     if (unsubscribeProjects) { unsubscribeProjects(); unsubscribeProjects = null; }
+
+    if (unsubscribeClients) { unsubscribeClients(); unsubscribeClients = null; }
+
+    if (unsubscribeTasks) { unsubscribeTasks(); unsubscribeTasks = null; }
 
     document.getElementById('loginScreen').style.display = 'flex';
 
@@ -100,6 +118,39 @@ onAuthStateChanged(auth, user => {
   }
 
 });
+
+// ── ROLES ────────────────────────────────────────────────────
+// Доступ к блоку "Отдел продаж" имеют роли owner и sales.
+// По умолчанию (нет записи в users/{email}) — роль 'pm', блок продаж скрыт.
+
+const OWNER_EMAILS = ["slavavladislava@gmail.com"]; // владелец всегда видит блок продаж
+
+window.currentRole = 'pm';
+
+async function loadUserRole(email){
+  try{
+    if(OWNER_EMAILS.includes(email)){
+      window.currentRole='owner';
+    } else {
+      const snap = await getDoc(doc(db,'users',email));
+      window.currentRole = snap.exists() ? (snap.data().role||'pm') : 'pm';
+    }
+  } catch(e){
+    console.error('role load error:', e);
+    window.currentRole='pm';
+  }
+  applyRoleUI();
+  if(window.currentRole==='owner'||window.currentRole==='sales'){
+    subscribeToClients();
+  }
+}
+
+function applyRoleUI(){
+  const salesNav = document.getElementById('navSales');
+  if(salesNav){
+    salesNav.style.display = (window.currentRole==='owner'||window.currentRole==='sales') ? '' : 'none';
+  }
+}
 
 function showAccessDenied() {
 
@@ -156,6 +207,118 @@ function subscribeToProjects() {
   }, err => console.error('Firestore error:', err));
 
 }
+
+// CRM: подписка на коллекцию clients (только owner/sales)
+function subscribeToClients() {
+
+  if (unsubscribeClients) return; // уже подписаны
+
+  const colRef = collection(db, 'clients');
+
+  unsubscribeClients = onSnapshot(colRef, snapshot => {
+
+    window.clients = [];
+
+    snapshot.forEach(d => window.clients.push({ id: d.id, ...d.data() }));
+
+    if (typeof renderCRM === 'function') renderCRM();
+
+  }, err => console.error('Firestore clients error:', err));
+
+}
+
+// CRM: сохранить / удалить клиента
+
+window.saveClientToFirestore = async (data) => {
+
+  const ref = doc(db, 'clients', data.id);
+
+  await setDoc(ref, { ...data, updatedAt: serverTimestamp(), updatedBy: currentUser?.email });
+
+};
+
+window.deleteClientFromFirestore = async (id) => {
+
+  await deleteDoc(doc(db, 'clients', id));
+
+};
+
+// ── TASKS (Trello-board) ──────────────────────────────────────
+// Владелец (owner-email) видит все задачи, остальные — только свои.
+
+function subscribeToTasks() {
+
+  const colRef = collection(db, 'tasks');
+
+  const isAdmin = OWNER_EMAILS.includes(currentUser?.email);
+
+  const q = isAdmin ? colRef : query(colRef, where('owner', '==', currentUser?.email));
+
+  unsubscribeTasks = onSnapshot(q, snapshot => {
+
+    window.tasks = [];
+
+    snapshot.forEach(d => window.tasks.push({ id: d.id, ...d.data() }));
+
+    if (typeof renderTasks === 'function') renderTasks();
+
+    if (typeof checkTaskReminders === 'function') checkTaskReminders();
+
+  }, err => console.error('Firestore tasks error:', err));
+
+}
+
+window.saveTaskToFirestore = async (data) => {
+
+  const ref = doc(db, 'tasks', data.id);
+
+  await setDoc(ref, { ...data, updatedAt: serverTimestamp(), updatedBy: currentUser?.email });
+
+};
+
+window.deleteTaskFromFirestore = async (id) => {
+
+  await deleteDoc(doc(db, 'tasks', id));
+
+};
+
+// CRM: ежедневные отчёты менеджера
+
+window.saveDailyReport = async (data) => {
+
+  const id = `${currentUser?.email}_${data.date}`;
+
+  const ref = doc(db, 'dailyReports', id);
+
+  await setDoc(ref, { ...data, author: currentUser?.email, updatedAt: serverTimestamp() });
+
+};
+
+// CRM: получить все отчёты (видны owner/sales)
+
+window.fetchAllReports = async () => {
+
+  try{
+
+    const { getDocs } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
+
+    const snap = await getDocs(collection(db,'dailyReports'));
+
+    const out = [];
+
+    snap.forEach(d=>out.push({ id: d.id, ...d.data() }));
+
+    return out;
+
+  } catch(e){
+
+    console.error('fetchAllReports error:', e);
+
+    return [];
+
+  }
+
+};
 
 // ── SAVE / DELETE to Firestore ───────────────────────────────
 
@@ -1194,6 +1357,119 @@ body{background:#0a0614}
 .period-inp{background:rgba(130,60,255,0.07);border:1px solid var(--ink4);border-radius:7px;
   color:var(--ink2);font-size:10px;padding:4px 9px;outline:none;font-family:'DM Sans',sans-serif}
 
+/* ════════════════════════════════════
+   SALES / CRM VIEW
+════════════════════════════════════ */
+/* ════════════════════════════════════
+   TASKS / TRELLO BOARD
+════════════════════════════════════ */
+#tasksView{flex-direction:column;overflow-y:auto;padding:22px 28px}
+.tk-filter-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.tk-owner-badge{display:inline-flex;align-items:center;gap:4px;font-size:8px;color:var(--ink3);
+  background:rgba(255,255,255,0.04);border:1px solid var(--ink4);border-radius:100px;padding:2px 8px 2px 3px;margin-top:6px}
+.tk-owner-av{width:14px;height:14px;border-radius:50%;background:linear-gradient(135deg,var(--v),var(--v3));
+  display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:700;color:#fff;flex-shrink:0}
+.tk-tag{display:inline-flex;align-items:center;gap:4px;font-size:8px;font-weight:700;letter-spacing:0.5px;
+  padding:2px 8px;border-radius:100px;border:1px solid;margin-bottom:6px;text-transform:uppercase}
+.tk-desc-preview{font-size:10px;color:var(--ink3);line-height:1.4;margin-bottom:6px;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.tag-picker{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.tag-dot{width:26px;height:26px;border-radius:8px;cursor:pointer;border:2px solid transparent;
+  display:flex;align-items:center;justify-content:center;transition:all 0.2s;flex-shrink:0}
+.tag-dot.on{border-color:#fff;box-shadow:0 0 10px rgba(255,255,255,0.3)}
+.tag-dot-none{background:rgba(255,255,255,0.05);border:2px dashed var(--ink4)}
+.tk-links-list{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
+.tk-link-row{display:flex;align-items:center;gap:8px;padding:8px 10px;background:rgba(130,60,255,0.05);
+  border:1px solid var(--ink4);border-radius:var(--r2)}
+.tk-link-row a{flex:1;color:var(--cyan);font-size:11px;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tk-link-row a:hover{text-decoration:underline}
+.tk-link-rm{background:none;border:none;color:var(--ink3);cursor:pointer;font-size:13px;flex-shrink:0}
+.tk-link-rm:hover{color:var(--fire)}
+.reminder-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;
+  background:rgba(255,170,24,0.05);border:1px solid rgba(255,170,24,0.2);border-radius:var(--r2);margin-bottom:10px}
+.reminder-row label{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--ink2);cursor:pointer}
+.reminder-row input[type=checkbox]{accent-color:var(--amber);width:14px;height:14px;cursor:pointer}
+.reminder-lead{background:rgba(255,255,255,0.05);border:1px solid var(--ink4);border-radius:6px;
+  color:var(--ink);font-size:11px;padding:4px 8px;width:52px;text-align:center;font-family:'JetBrains Mono',monospace}
+
+#salesView{flex-direction:column;overflow-y:auto;padding:22px 28px}
+.crm-tabs{display:flex;gap:1px;background:rgba(255,255,255,0.025);border:1px solid var(--ink4);
+  border-radius:100px;padding:3px;width:fit-content;margin-bottom:18px}
+.crm-tab{background:none;border:none;color:var(--ink3);font-family:'DM Sans',sans-serif;font-size:9px;
+  font-weight:600;letter-spacing:2px;padding:6px 18px;cursor:pointer;border-radius:100px;
+  transition:all 0.2s;text-transform:uppercase}
+.crm-tab.on{background:rgba(119,48,255,0.22);color:var(--ink);box-shadow:inset 0 0 0 1px rgba(130,60,255,0.35)}
+
+/* TOOLBAR */
+.crm-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.crm-btn{display:flex;align-items:center;gap:6px;background:rgba(119,48,255,0.18);
+  border:1px solid rgba(150,70,255,0.4);color:var(--ink);font-family:'DM Sans',sans-serif;
+  font-size:9px;font-weight:700;letter-spacing:1.5px;padding:8px 16px;cursor:pointer;
+  border-radius:100px;transition:all 0.25s;text-transform:uppercase}
+.crm-btn:hover{background:rgba(119,48,255,0.32);box-shadow:0 0 24px rgba(119,48,255,0.22)}
+.crm-btn.ghost{background:rgba(255,255,255,0.03);border-color:var(--ink4);color:var(--ink2)}
+.crm-btn.ghost:hover{border-color:rgba(130,60,255,0.4);color:var(--ink)}
+
+/* KANBAN */
+.kanban{display:flex;gap:12px;overflow-x:auto;padding-bottom:12px;flex:1}
+.kcol{flex:0 0 260px;display:flex;flex-direction:column;background:rgba(11,8,22,0.4);
+  border:1px solid var(--ink4);border-radius:var(--r);min-height:200px}
+.kcol.dragover{border-color:rgba(130,60,255,0.5);background:rgba(119,48,255,0.06)}
+.kcol-hdr{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;
+  border-bottom:1px solid var(--ink4)}
+.kcol-title{font-size:9px;font-weight:700;letter-spacing:2px;text-transform:uppercase}
+.kcol-count{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--ink3);
+  background:rgba(255,255,255,0.04);border-radius:100px;padding:1px 8px}
+.kcol-body{flex:1;padding:8px;display:flex;flex-direction:column;gap:6px;overflow-y:auto;max-height:calc(100vh - 320px)}
+.kcard{background:var(--surf);border:1px solid var(--ink4);border-radius:var(--r2);padding:10px 12px;
+  cursor:grab;transition:all 0.2s;position:relative}
+.kcard:active{cursor:grabbing}
+.kcard:hover{border-color:rgba(130,60,255,0.35);transform:translateY(-1px)}
+.kcard-name{font-size:12px;font-weight:700;color:#f0ebff;margin-bottom:3px}
+.kcard-contact{font-size:10px;color:var(--ink2);margin-bottom:6px}
+.kcard-meta{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.kcard-mi{font-size:9px;color:rgba(220,208,255,0.7);display:flex;align-items:center;gap:3px}
+.kcard-sum{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--cyan)}
+.kcard-next{margin-top:6px;font-size:9px;padding:3px 8px;border-radius:100px;border:1px solid;display:inline-block}
+.kcard-next.overdue{color:var(--fire);border-color:rgba(255,48,80,0.35);background:rgba(255,48,80,0.1)}
+.kcard-next.soon{color:var(--amber);border-color:rgba(255,170,24,0.3);background:rgba(255,170,24,0.08)}
+.kcard-next.future{color:var(--ink3);border-color:var(--ink4);background:rgba(255,255,255,0.02)}
+
+/* CLIENT LIST (table-like) */
+.crm-list{display:flex;flex-direction:column;gap:5px}
+.crow{display:flex;align-items:center;gap:12px;padding:10px 14px;border:1px solid var(--ink4);
+  border-radius:var(--r2);background:rgba(11,8,22,0.5);cursor:pointer;transition:all 0.2s}
+.crow:hover{border-color:rgba(130,60,255,0.3);background:rgba(18,14,36,0.8);transform:translateX(2px)}
+.crow-name{flex:1;font-size:12px;font-weight:700;color:#f0ebff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.crow-contact{font-size:10px;color:var(--ink2);min-width:140px}
+.crow-status{font-size:8px;letter-spacing:1px;padding:3px 10px;border-radius:100px;border:1px solid;
+  font-weight:700;text-transform:uppercase;flex-shrink:0}
+.crow-sum{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink2);min-width:74px;text-align:right}
+
+/* CLIENT MODAL EXTRA FIELDS reuse .minp / .msec / .mpane */
+.crm-grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.activity-item{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--ink4)}
+.activity-item:last-child{border-bottom:none}
+.activity-meta{display:flex;flex-direction:column;gap:1px;min-width:90px;flex-shrink:0}
+.activity-author{font-size:9px;font-weight:600;color:var(--ink2)}
+.activity-date{font-size:8px;color:var(--ink3);font-family:'JetBrains Mono',monospace}
+.activity-text{font-size:11px;color:var(--ink2);line-height:1.5;flex:1}
+
+/* DAILY REPORT */
+.report-textarea{width:100%;min-height:120px;background:rgba(130,60,255,0.05);border:1px solid var(--ink4);
+  border-radius:var(--r2);color:var(--ink);font-size:12px;padding:12px;outline:none;
+  font-family:'DM Sans',sans-serif;resize:vertical;line-height:1.6}
+.report-textarea:focus{border-color:rgba(130,60,255,0.42)}
+.report-row{padding:12px 14px;border:1px solid var(--ink4);border-radius:var(--r2);
+  background:var(--surf);margin-bottom:6px}
+.report-row-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.report-row-date{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink3)}
+.report-row-author{font-size:9px;color:var(--ink2);font-weight:600}
+.report-row-text{font-size:11px;color:var(--ink2);line-height:1.6;white-space:pre-wrap}
+
+/* IMPORT MODAL SIMPLE */
+.import-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--ink4);font-size:10px}
+.import-row:last-child{border-bottom:none}
 </style>
 
 </head>
@@ -1274,6 +1550,10 @@ body{background:#0a0614}
       <button class="npill"    id="navAnalytics"onclick="nav('analytics')">Аналитика</button>
 
       <button class="npill"    id="navNotifs"   onclick="nav('notifs')">Уведомления</button>
+
+      <button class="npill"    id="navTasks"    onclick="nav('tasks')">Задачи</button>
+
+      <button class="npill"    id="navSales"    onclick="nav('sales')" style="display:none">Отдел продаж</button>
 
     </div>
 
@@ -1420,6 +1700,24 @@ body{background:#0a0614}
     <div class="view" id="notifsView">
 
       <div id="notifsContent" style="width:100%"></div>
+
+    </div>
+
+    <!-- SALES / CRM -->
+
+    <!-- TASKS -->
+
+    <div class="view" id="tasksView">
+
+      <div id="tasksContent" style="width:100%"></div>
+
+    </div>
+
+    <!-- SALES / CRM -->
+
+    <div class="view" id="salesView">
+
+      <div id="salesContent" style="width:100%"></div>
 
     </div>
 
@@ -1745,6 +2043,178 @@ body{background:#0a0614}
 
 </div>
 
+<!-- ══════════════════════
+     CLIENT MODAL (CRM)
+════════════════════════ -->
+<div class="overlay" id="clientOverlay">
+<div class="modal" style="width:680px">
+  <div class="m-crown" id="cmCrown" style="background:linear-gradient(90deg,var(--v),var(--v3))"></div>
+  <div class="m-hdr">
+    <div>
+      <input class="m-title" id="cfCompany" placeholder="Название компании / контрагента">
+      <div class="m-quick">
+        <div class="mqf"><label>Контакт</label><input id="cfContact" type="text" placeholder="ФИО"></div>
+        <div class="mqf"><label>Должность</label><input id="cfRole" type="text" placeholder="Должность"></div>
+      </div>
+      <div class="m-quick">
+        <div class="mqf"><label>Телефон</label><input id="cfPhone" type="text" placeholder="+7..."></div>
+        <div class="mqf"><label>Email</label><input id="cfEmail" type="text" placeholder="email@..."></div>
+        <div class="mqf"><label>Соцсети</label><input id="cfSocial" type="text" placeholder="VK / TG"></div>
+      </div>
+    </div>
+    <button class="m-close-btn" onclick="closeClientModal()">✕</button>
+  </div>
+
+  <div class="m-tabs">
+    <button class="mtab on" id="ctabMain" onclick="cTab('main')">Карточка</button>
+    <button class="mtab" id="ctabActivity" onclick="cTab('activity')">Активности</button>
+  </div>
+
+  <div class="mpane on" id="cpane-main">
+    <div class="msec">Воронка продаж</div>
+    <div class="m-quick" id="crmStatusPills" style="margin-bottom:14px"></div>
+
+    <div class="crm-grid2" style="margin-bottom:10px">
+      <div>
+        <div class="flbl">Сумма сделки, ₽</div>
+        <input class="minp" id="cfSum" type="number" placeholder="0">
+      </div>
+      <div>
+        <div class="flbl">Источник</div>
+        <select class="minp" id="cfSource">
+          <option value="existing">Существующий контакт</option>
+          <option value="potential">Потенциальный контакт</option>
+          <option value="manual">Добавлен вручную</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="crm-grid2" style="margin-bottom:10px">
+      <div>
+        <div class="flbl">Следующий шаг</div>
+        <input class="minp" id="cfNextStep" type="text" placeholder="Например: позвонить, выслать КП">
+      </div>
+      <div>
+        <div class="flbl">Дата следующего шага</div>
+        <input class="minp" id="cfNextDate" type="date">
+      </div>
+    </div>
+
+    <div id="cfRejectWrap" style="display:none;margin-bottom:10px">
+      <div class="flbl">Причина отказа</div>
+      <input class="minp" id="cfRejectReason" type="text" placeholder="Дорого / не дозвонились / выбрали конкурента...">
+    </div>
+
+    <div class="msec">Заметки</div>
+    <textarea class="minp" id="cfNotes" rows="3" style="width:100%;resize:vertical;min-height:60px" placeholder="Общие заметки по клиенту"></textarea>
+  </div>
+
+  <div class="mpane" id="cpane-activity">
+    <div class="msec">История активностей</div>
+    <div id="cActivityList" style="margin-bottom:12px"></div>
+    <div class="addrow">
+      <input class="minp" id="cActivityIn" type="text" placeholder="Например: созвон 11.06, обсудили коммерческое предложение..." style="flex:1"
+        onkeydown="if(event.key==='Enter'){addClientActivity();event.preventDefault()}">
+      <button class="abtn" onclick="addClientActivity()">+</button>
+    </div>
+  </div>
+
+  <div class="m-foot">
+    <button class="mbtn mbtn-del" id="cBtnDel" onclick="deleteClient()" style="display:none">Удалить</button>
+    <button class="mbtn mbtn-save" style="margin-left:auto" onclick="saveClient()">Сохранить →</button>
+  </div>
+</div>
+</div>
+
+<!-- ══════════════════════
+     IMPORT MODAL (CRM)
+════════════════════════ -->
+<div class="overlay" id="importOverlay">
+<div class="modal" style="width:480px">
+  <div class="m-hdr">
+    <div>
+      <div class="m-title" style="font-size:18px">Импорт клиентов из Excel</div>
+      <div class="hero-sub" style="margin-top:6px">Поддерживаются листы «Существующие контакты» и «Потенциальные контакты»</div>
+    </div>
+    <button class="m-close-btn" onclick="closeImportModal()">✕</button>
+  </div>
+  <div class="mpane on" style="padding:18px 22px">
+    <input type="file" id="importFile" accept=".xlsx,.xls" style="margin-bottom:14px;color:var(--ink2);font-size:11px">
+    <div id="importPreview"></div>
+  </div>
+  <div class="m-foot">
+    <button class="mbtn mbtn-save" style="margin-left:auto" onclick="runImport()">Импортировать →</button>
+  </div>
+</div>
+</div>
+
+<!-- ══════════════════════
+     TASK MODAL
+════════════════════════ -->
+<div class="overlay" id="taskOverlay">
+<div class="modal" style="width:640px">
+  <div class="m-crown" id="tmCrown" style="background:linear-gradient(90deg,var(--v),var(--v3))"></div>
+  <div class="m-hdr">
+    <div style="flex:1">
+      <input class="m-title" id="tfTitle" placeholder="Название задачи…">
+      <div class="m-quick" style="margin-top:10px">
+        <div class="mqf"><label>Чья задача</label>
+          <select class="minp" id="tfOwner" style="width:190px"></select>
+        </div>
+        <div class="mqf"><label>Колонка</label>
+          <select class="minp" id="tfColumn" style="width:150px">
+            <option value="projects">Проекты</option>
+            <option value="urgent">Срочные</option>
+            <option value="inprogress">В работе</option>
+            <option value="done">Выполнено</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <button class="m-close-btn" onclick="closeTaskModal()">✕</button>
+  </div>
+
+  <div class="mpane on" style="padding-top:6px">
+
+    <div class="msec">Метка</div>
+    <div class="tag-picker" id="tagPicker"></div>
+
+    <div class="msec">Описание</div>
+    <textarea class="minp" id="tfDesc" rows="3" style="width:100%;resize:vertical;min-height:60px;margin-bottom:14px" placeholder="Что нужно сделать…"></textarea>
+
+    <div class="crm-grid2" style="margin-bottom:14px">
+      <div>
+        <div class="flbl">Срок выполнения</div>
+        <input class="minp" id="tfStartDate" type="date">
+      </div>
+      <div>
+        <div class="flbl">Дедлайн</div>
+        <input class="minp" id="tfDeadline" type="date">
+      </div>
+    </div>
+
+    <div class="reminder-row">
+      <label><input type="checkbox" id="tfReminderOn"> Напомнить по email до дедлайна за</label>
+      <input class="reminder-lead" id="tfReminderLead" type="number" min="0" value="1"> дн.
+    </div>
+
+    <div class="msec">Документы / ссылки</div>
+    <div class="tk-links-list" id="tkLinksList"></div>
+    <div class="addrow">
+      <input class="minp" id="tkLinkIn" type="text" placeholder="Ссылка на документ (Google Drive и т.п.)" style="flex:1"
+        onkeydown="if(event.key==='Enter'){addTaskLink();event.preventDefault()}">
+      <button class="abtn" onclick="addTaskLink()">+</button>
+    </div>
+
+  </div>
+
+  <div class="m-foot">
+    <button class="mbtn mbtn-del" id="tBtnDel" onclick="deleteTask()" style="display:none">Удалить</button>
+    <button class="mbtn mbtn-save" style="margin-left:auto" onclick="saveTask()">Сохранить →</button>
+  </div>
+</div>
+</div>
+
 <div class="toasts" id="toastsEl"></div>
 
 <script>
@@ -1854,6 +2324,7 @@ function tickClock(){
 }
 
 setInterval(tickClock,1000);tickClock();
+setInterval(()=>{ if(typeof checkTaskReminders==='function') checkTaskReminders(); },300000);
 
 // ── TOAST ──────────────────────────────────────────────────
 
@@ -2211,9 +2682,292 @@ function setCustomPeriod(){
   renderAnalytics();
 }
 
+
+// ════════════════════════════════════
+//   ЗАДАЧИ (TRELLO-BOARD)
+// ════════════════════════════════════
+
+window.tasks = window.tasks || [];
+let editTaskId = null;
+let tkLinks = [];
+let tkTag = 'none';
+let taskFilterUser = 'all';
+
+const TASK_COLS = {
+  projects:   {label:'Проекты',    c:'#7730ff'},
+  urgent:     {label:'Срочные',    c:'#ff3050'},
+  inprogress: {label:'В работе',   c:'#ffaa18'},
+  done:       {label:'Выполнено',  c:'#30e070'}
+};
+const TASK_COL_ORDER = ['projects','urgent','inprogress','done'];
+
+const TASK_TAGS = {
+  none:   {label:'Без метки',        c:'#5a5470'},
+  red:    {label:'Срочно',           c:'#ff3050'},
+  orange: {label:'Важно',            c:'#ffaa18'},
+  green:  {label:'Готово к сдаче',   c:'#30e070'},
+  blue:   {label:'Инфо',             c:'#2888ff'},
+  purple: {label:'Проект',           c:'#a838e8'}
+};
+
+function myEmail(){ return document.getElementById('userEmail')?.textContent || ''; }
+function isTaskAdmin(){ return window.currentRole === 'owner'; }
+
+function renderTasks(){
+  const root = document.getElementById('tasksContent');
+  if(!root) return;
+
+  const admin = isTaskAdmin();
+  const filterRow = admin ? `
+    <div class="tk-filter-row">
+      <span class="ana-filter-label">Показать</span>
+      <button class="period-btn ${taskFilterUser==='all'?'on':''}" onclick="setTaskFilter('all')">Все</button>
+      ${(window.ALLOWED_EMAILS||[]).map(em=>`<button class="period-btn ${taskFilterUser===em?'on':''}" onclick="setTaskFilter('${em}')">${em.split('@')[0]}</button>`).join('')}
+    </div>` : '';
+
+  root.innerHTML = `
+    ${filterRow}
+    <div class="crm-toolbar">
+      <button class="crm-btn" onclick="openNewTask()">+ Новая задача</button>
+    </div>
+    <div class="kanban" id="taskKanbanEl"></div>
+  `;
+  renderTaskBoard();
+}
+
+function setTaskFilter(v){ taskFilterUser=v; renderTasks(); }
+
+function renderTaskBoard(){
+  const kanban = document.getElementById('taskKanbanEl');
+  if(!kanban) return;
+  const admin = isTaskAdmin();
+  let list = window.tasks || [];
+  if(admin && taskFilterUser!=='all'){ list = list.filter(t=>t.owner===taskFilterUser); }
+
+  kanban.innerHTML = TASK_COL_ORDER.map(colKey=>{
+    const col = TASK_COLS[colKey];
+    const items = list.filter(t=>(t.column||'projects')===colKey);
+    return `<div class="kcol" data-col="${colKey}" ondragover="tcolDragOver(event)" ondragleave="tcolDragLeave(event)" ondrop="tcolDrop(event,'${colKey}')">
+      <div class="kcol-hdr">
+        <div class="kcol-title" style="color:${col.c}">${col.label}</div>
+        <div class="kcol-count">${items.length}</div>
+      </div>
+      <div class="kcol-body">
+        ${items.map(t=>tCard(t)).join('') || '<div class="empty-s">Пусто</div>'}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function tCard(t){
+  const tag = TASK_TAGS[t.tag||'none'];
+  const admin = isTaskAdmin();
+  let deadlineTag='';
+  if(t.deadline){
+    const d = daysUntil(t.deadline);
+    const cls = d<0?'overdue':(d<=2?'soon':'future');
+    deadlineTag = `<div class="kcard-next ${cls}">⏰ ${new Date(t.deadline).toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit'})}</div>`;
+  }
+  return `<div class="kcard" draggable="true" ondragstart="tcardDragStart(event,'${t.id}')" onclick="openEditTask('${t.id}')">
+    ${t.tag&&t.tag!=='none'?`<div class="tk-tag" style="color:${tag.c};border-color:${tag.c}55;background:${tag.c}1a">${tag.label}</div>`:''}
+    <div class="kcard-name">${t.title||'Без названия'}</div>
+    ${t.desc?`<div class="tk-desc-preview">${t.desc}</div>`:''}
+    <div class="kcard-meta">
+      ${t.links&&t.links.length?`<div class="kcard-mi">🔗 ${t.links.length}</div>`:''}
+    </div>
+    ${deadlineTag}
+    ${admin && t.owner ? `<div class="tk-owner-badge"><span class="tk-owner-av">${(t.owner[0]||'?').toUpperCase()}</span>${t.owner.split('@')[0]}</div>` : ''}
+  </div>`;
+}
+
+let dragTaskId = null;
+function tcardDragStart(e,id){ dragTaskId=id; e.dataTransfer.effectAllowed='move'; }
+function tcolDragOver(e){ e.preventDefault(); e.currentTarget.classList.add('dragover'); }
+function tcolDragLeave(e){ e.currentTarget.classList.remove('dragover'); }
+function tcolDrop(e,colKey){
+  e.preventDefault();
+  e.currentTarget.classList.remove('dragover');
+  if(!dragTaskId) return;
+  const t = (window.tasks||[]).find(x=>x.id===dragTaskId);
+  if(!t) return;
+  const data = {...t, column:colKey};
+  if(window.saveTaskToFirestore){
+    window.saveTaskToFirestore(data).then(()=>toast('Задача перемещена','✨'));
+  }
+  dragTaskId=null;
+}
+
+// ── МОДАЛКА ЗАДАЧИ ────────────────────────────────────────────
+function fillOwnerSelect(selected){
+  const sel = document.getElementById('tfOwner');
+  if(!sel) return;
+  const admin = isTaskAdmin();
+  const list = window.ALLOWED_EMAILS || [myEmail()];
+  sel.innerHTML = list.map(em=>`<option value="${em}">${em.split('@')[0]}</option>`).join('');
+  sel.value = selected || myEmail();
+  sel.disabled = !admin; // рядовые пользователи всегда создают задачу себе
+}
+
+function renderTagPicker(){
+  const el = document.getElementById('tagPicker');
+  if(!el) return;
+  el.innerHTML = Object.entries(TASK_TAGS).map(([key,tag])=>{
+    const isNone = key==='none';
+    return `<div class="tag-dot ${isNone?'tag-dot-none':''} ${tkTag===key?'on':''}"
+      style="${isNone?'':'background:'+tag.c}" title="${tag.label}" onclick="selectTag('${key}')">
+      ${isNone?'∅':''}
+    </div>`;
+  }).join('');
+}
+function selectTag(key){ tkTag=key; renderTagPicker(); }
+
+function addTaskLink(){
+  const v = document.getElementById('tkLinkIn').value.trim();
+  if(!v) return;
+  tkLinks.push(v);
+  document.getElementById('tkLinkIn').value='';
+  renderTaskLinks();
+}
+function removeTaskLink(i){ tkLinks.splice(i,1); renderTaskLinks(); }
+function renderTaskLinks(){
+  document.getElementById('tkLinksList').innerHTML = tkLinks.map((l,i)=>`
+    <div class="tk-link-row">
+      <span style="font-size:13px">🔗</span>
+      <a href="${l}" target="_blank">${l}</a>
+      <button class="tk-link-rm" onclick="removeTaskLink(${i})">×</button>
+    </div>`).join('');
+}
+
+function openNewTask(){
+  editTaskId = null;
+  tkLinks = [];
+  tkTag = 'none';
+  document.getElementById('tfTitle').value='';
+  document.getElementById('tfDesc').value='';
+  document.getElementById('tfColumn').value='projects';
+  document.getElementById('tfStartDate').value='';
+  document.getElementById('tfDeadline').value='';
+  document.getElementById('tfReminderOn').checked=false;
+  document.getElementById('tfReminderLead').value=1;
+  document.getElementById('tBtnDel').style.display='none';
+  fillOwnerSelect(myEmail());
+  renderTagPicker();
+  renderTaskLinks();
+  document.getElementById('taskOverlay').classList.add('on');
+}
+
+function openEditTask(id){
+  const t = (window.tasks||[]).find(x=>x.id===id);
+  if(!t) return;
+  editTaskId = id;
+  tkLinks = [...(t.links||[])];
+  tkTag = t.tag || 'none';
+  document.getElementById('tfTitle').value = t.title||'';
+  document.getElementById('tfDesc').value = t.desc||'';
+  document.getElementById('tfColumn').value = t.column||'projects';
+  document.getElementById('tfStartDate').value = t.startDate||'';
+  document.getElementById('tfDeadline').value = t.deadline||'';
+  document.getElementById('tfReminderOn').checked = !!t.reminderOn;
+  document.getElementById('tfReminderLead').value = t.reminderLead || 1;
+  document.getElementById('tBtnDel').style.display='';
+  fillOwnerSelect(t.owner);
+  renderTagPicker();
+  renderTaskLinks();
+  document.getElementById('taskOverlay').classList.add('on');
+}
+
+function closeTaskModal(){
+  document.getElementById('taskOverlay').classList.remove('on');
+}
+
+function saveTask(){
+  const g = id=>{ const el=document.getElementById(id); return el?el.value.trim():''; };
+  const title = g('tfTitle');
+  if(!title){ toast('Введи название задачи','⚠️'); return; }
+  const data = {
+    id: editTaskId || Date.now().toString(),
+    title,
+    desc: g('tfDesc'),
+    column: g('tfColumn') || 'projects',
+    tag: tkTag,
+    owner: document.getElementById('tfOwner').value || myEmail(),
+    startDate: g('tfStartDate'),
+    deadline: g('tfDeadline'),
+    reminderOn: document.getElementById('tfReminderOn').checked,
+    reminderLead: Number(document.getElementById('tfReminderLead').value)||1,
+    links: [...tkLinks],
+    createdBy: editTaskId ? undefined : myEmail()
+  };
+  if(!editTaskId){ data.reminderSent = false; }
+  closeTaskModal();
+  const sd=document.getElementById('savingDot'); if(sd) sd.style.display='flex';
+  if(window.saveTaskToFirestore){
+    window.saveTaskToFirestore(data).then(()=>{
+      if(sd) sd.style.display='none';
+      toast(editTaskId?'Задача обновлена ☁️':'Задача создана ☁️','✨');
+    }).catch(()=>{ if(sd) sd.style.display='none'; toast('Ошибка сохранения','❌'); });
+  }
+}
+
+function deleteTask(){
+  if(!editTaskId) return;
+  if(!confirm('Удалить задачу?')) return;
+  const id = editTaskId;
+  closeTaskModal();
+  if(window.deleteTaskFromFirestore){
+    window.deleteTaskFromFirestore(id).then(()=>toast('Задача удалена','🗑️'));
+  }
+}
+
+// ── EMAIL-НАПОМИНАНИЯ О ДЕДЛАЙНЕ ──────────────────────────────
+// Реализовано через EmailJS (emailjs.com, бесплатный тариф, без бэкенда).
+// Чтобы напоминания реально отправлялись почтой, впиши свои
+// SERVICE_ID / TEMPLATE_ID / PUBLIC_KEY ниже (см. инструкцию в чате).
+// Пока ключи не вписаны — напоминания показываются только всплывающим тостом в приложении.
+const EMAILJS_PUBLIC_KEY  = 'ВПИШИ_СВОЙ_PUBLIC_KEY';
+const EMAILJS_SERVICE_ID  = 'ВПИШИ_SERVICE_ID';
+const EMAILJS_TEMPLATE_ID = 'ВПИШИ_TEMPLATE_ID';
+let emailjsReady = false;
+try{
+  if(window.emailjs && EMAILJS_PUBLIC_KEY.indexOf('ВПИШИ')===-1){
+    emailjs.init({publicKey: EMAILJS_PUBLIC_KEY});
+    emailjsReady = true;
+  }
+}catch(e){ console.warn('EmailJS не инициализирован:', e); }
+
+function sendTaskReminderEmail(t){
+  if(!emailjsReady) return Promise.resolve(false);
+  return emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+    to_email: t.owner,
+    task_title: t.title,
+    task_deadline: t.deadline,
+    task_desc: t.desc||''
+  }).then(()=>true).catch(err=>{ console.error('Ошибка отправки письма:', err); return false; });
+}
+
+let taskReminderCheckDone = {};
+function checkTaskReminders(){
+  (window.tasks||[]).forEach(t=>{
+    if(!t.reminderOn || !t.deadline || t.reminderSent) return;
+    const d = daysUntil(t.deadline);
+    if(d===null) return;
+    const lead = Number(t.reminderLead)||1;
+    if(d<=lead && d>=0 && t.owner===myEmail() && !taskReminderCheckDone[t.id]){
+      taskReminderCheckDone[t.id] = true;
+      toast(`⏰ Дедлайн «${t.title}» через ${d} дн.`, '📌');
+      sendTaskReminderEmail(t).finally(()=>{
+        if(window.saveTaskToFirestore){
+          window.saveTaskToFirestore({...t, reminderSent:true}).catch(()=>{});
+        }
+      });
+    }
+  });
+}
+
+
 function nav(v){
 
-  ['today','projects','analytics','notifs'].forEach(n=>{
+  ['today','projects','analytics','notifs','tasks','sales'].forEach(n=>{
 
     const cap=n.charAt(0).toUpperCase()+n.slice(1);
 
@@ -2228,6 +2982,10 @@ function nav(v){
   if(v==='analytics')renderAnalytics();
 
   if(v==='notifs')renderNotifs();
+
+  if(v==='sales')renderCRM();
+
+  if(v==='tasks')renderTasks();
 
 }
 
@@ -2497,7 +3255,513 @@ function editorLine(ev){
   return`<div class="last-edit"><div class="last-edit-dot"></div>Изменил: ${who}</div>`;
 }
 
+// ════════════════════════════════════
+//   CRM / ОТДЕЛ ПРОДАЖ
+// ════════════════════════════════════
+
+window.clients = window.clients || [];
+let crmTab = 'funnel'; // funnel | list | reports | analytics
+let editClientId = null;
+let cActivities = [];
+
+const CRM_ST = {
+  new:      {label:'Новый',           c:'#7730ff'},
+  contact:  {label:'Связались',       c:'#2888ff'},
+  interest: {label:'Есть интерес',    c:'#20e8c8'},
+  proposal: {label:'КП отправлено',   c:'#ffaa18'},
+  negotiate:{label:'Переговоры',      c:'#d840b8'},
+  won:      {label:'Сделка',          c:'#30e070'},
+  lost:     {label:'Отказ',           c:'#ff3050'}
+};
+const CRM_ST_ORDER = ['new','contact','interest','proposal','negotiate','won','lost'];
+
+function nav_sales_init(){
+  // вызывается при первом открытии раздела
+}
+
+function renderCRM(){
+  const root = document.getElementById('salesContent');
+  if(!root) return;
+  if(!(window.currentRole==='owner'||window.currentRole==='sales')){
+    root.innerHTML = `<div class="empty-s" style="padding:60px">Доступ запрещён</div>`;
+    return;
+  }
+  root.innerHTML = `
+    <div class="crm-tabs">
+      <button class="crm-tab ${crmTab==='funnel'?'on':''}" onclick="setCrmTab('funnel')">Воронка</button>
+      <button class="crm-tab ${crmTab==='list'?'on':''}" onclick="setCrmTab('list')">Список</button>
+      <button class="crm-tab ${crmTab==='reports'?'on':''}" onclick="setCrmTab('reports')">Отчёты</button>
+      <button class="crm-tab ${crmTab==='analytics'?'on':''}" onclick="setCrmTab('analytics')">Аналитика</button>
+    </div>
+    <div id="crmBody"></div>
+  `;
+  renderCrmBody();
+}
+
+function setCrmTab(t){ crmTab=t; renderCrmBody(); }
+
+function renderCrmBody(){
+  const body = document.getElementById('crmBody');
+  if(!body) return;
+  if(crmTab==='funnel') return renderCrmFunnel(body);
+  if(crmTab==='list') return renderCrmList(body);
+  if(crmTab==='reports') return renderCrmReports(body);
+  if(crmTab==='analytics') return renderCrmAnalytics(body);
+}
+
+// ── ВОРОНКА (KANBAN) ─────────────────────────────────────────
+function renderCrmFunnel(body){
+  body.innerHTML = `
+    <div class="crm-toolbar">
+      <button class="crm-btn" onclick="openNewClient()">+ Новый клиент</button>
+      <button class="crm-btn ghost" onclick="openImportModal()">⇪ Импорт из Excel</button>
+    </div>
+    <div class="kanban" id="kanbanEl"></div>
+  `;
+  const kanban = document.getElementById('kanbanEl');
+  kanban.innerHTML = CRM_ST_ORDER.map(stKey=>{
+    const st = CRM_ST[stKey];
+    const items = window.clients.filter(c=>(c.status||'new')===stKey);
+    return `<div class="kcol" data-status="${stKey}" ondragover="kcolDragOver(event)" ondragleave="kcolDragLeave(event)" ondrop="kcolDrop(event,'${stKey}')">
+      <div class="kcol-hdr">
+        <div class="kcol-title" style="color:${st.c}">${st.label}</div>
+        <div class="kcol-count">${items.length}</div>
+      </div>
+      <div class="kcol-body">
+        ${items.map(c=>kClientCard(c)).join('') || '<div class="empty-s">Пусто</div>'}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function kClientCard(c){
+  let nextTag='';
+  if(c.nextDate){
+    const d = daysUntil(c.nextDate);
+    const cls = d<0?'overdue':(d<=2?'soon':'future');
+    nextTag = `<div class="kcard-next ${cls}">${c.nextStep?c.nextStep+' · ':''}${new Date(c.nextDate).toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit'})}</div>`;
+  }
+  return `<div class="kcard" draggable="true" ondragstart="kcardDragStart(event,'${c.id}')" onclick="openEditClient('${c.id}')">
+    <div class="kcard-name">${c.company||c.contact||'Без названия'}</div>
+    ${c.contact&&c.company?`<div class="kcard-contact">${c.contact}${c.role?', '+c.role:''}</div>`:''}
+    <div class="kcard-meta">
+      ${c.sum?`<div class="kcard-sum">${fmt(c.sum)} ₽</div>`:''}
+    </div>
+    ${nextTag}
+    ${c.updatedBy?`<div class="last-edit"><div class="last-edit-dot"></div>${c.updatedBy.split('@')[0]}</div>`:''}
+  </div>`;
+}
+
+let dragClientId = null;
+function kcardDragStart(e,id){ dragClientId=id; e.dataTransfer.effectAllowed='move'; }
+function kcolDragOver(e){ e.preventDefault(); e.currentTarget.classList.add('dragover'); }
+function kcolDragLeave(e){ e.currentTarget.classList.remove('dragover'); }
+function kcolDrop(e,status){
+  e.preventDefault();
+  e.currentTarget.classList.remove('dragover');
+  if(!dragClientId) return;
+  const c = window.clients.find(x=>x.id===dragClientId);
+  if(!c) return;
+  const data = {...c, status};
+  if(status!=='lost') data.rejectReason = data.rejectReason||'';
+  if(window.saveClientToFirestore){
+    window.saveClientToFirestore(data).then(()=>toast('Статус обновлён','✨'));
+  }
+  dragClientId=null;
+}
+
+// ── СПИСОК КЛИЕНТОВ ──────────────────────────────────────────
+function renderCrmList(body){
+  body.innerHTML = `
+    <div class="crm-toolbar">
+      <button class="crm-btn" onclick="openNewClient()">+ Новый клиент</button>
+      <button class="crm-btn ghost" onclick="openImportModal()">⇪ Импорт из Excel</button>
+    </div>
+    <div class="crm-list" id="crmListEl"></div>
+  `;
+  const listEl = document.getElementById('crmListEl');
+  if(!window.clients.length){
+    listEl.innerHTML = '<div class="empty-s">Клиентов пока нет</div>';
+    return;
+  }
+  listEl.innerHTML = window.clients.map(c=>{
+    const st = CRM_ST[c.status||'new'];
+    return `<div class="crow" onclick="openEditClient('${c.id}')">
+      <div class="crow-name">${c.company||c.contact||'Без названия'}</div>
+      <div class="crow-contact">${c.contact||''}${c.phone?' · '+c.phone:''}</div>
+      <div class="crow-status" style="color:${st.c};border-color:${st.c}55;background:${st.c}1a">${st.label}</div>
+      <div class="crow-sum">${c.sum?fmt(c.sum)+' ₽':''}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── КАРТОЧКА КЛИЕНТА (МОДАЛКА) ───────────────────────────────
+function cTab(t){
+  document.getElementById('ctabMain').classList.toggle('on',t==='main');
+  document.getElementById('ctabActivity').classList.toggle('on',t==='activity');
+  document.getElementById('cpane-main').classList.toggle('on',t==='main');
+  document.getElementById('cpane-activity').classList.toggle('on',t==='activity');
+}
+
+function renderCrmStatusPills(curStatus){
+  const wrap = document.getElementById('crmStatusPills');
+  wrap.innerHTML = CRM_ST_ORDER.map(k=>{
+    const st = CRM_ST[k];
+    const on = (curStatus||'new')===k;
+    return `<button class="mqf" style="cursor:pointer;${on?`border-color:${st.c}88;background:${st.c}22`:''}" onclick="setClientStatus('${k}')">
+      <label style="color:${on?st.c:'var(--ink3)'}">${st.label}</label>
+    </button>`;
+  }).join('');
+}
+
+let curClientStatus = 'new';
+function setClientStatus(s){
+  curClientStatus = s;
+  renderCrmStatusPills(s);
+  document.getElementById('cfRejectWrap').style.display = s==='lost'?'block':'none';
+}
+
+function openNewClient(){
+  editClientId = null;
+  cActivities = [];
+  curClientStatus = 'new';
+  document.getElementById('cBtnDel').style.display='none';
+  ['cfCompany','cfContact','cfRole','cfPhone','cfEmail','cfSocial','cfSum','cfNextStep','cfNextDate','cfNotes','cfRejectReason'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value='';
+  });
+  document.getElementById('cfSource').value='manual';
+  renderCrmStatusPills('new');
+  document.getElementById('cfRejectWrap').style.display='none';
+  cTab('main');
+  renderClientActivities();
+  document.getElementById('clientOverlay').classList.add('open');
+}
+
+function openEditClient(id){
+  const c = window.clients.find(x=>x.id===id);
+  if(!c) return;
+  editClientId = id;
+  cActivities = (c.activities||[]).slice();
+  curClientStatus = c.status||'new';
+  document.getElementById('cBtnDel').style.display='';
+  document.getElementById('cfCompany').value = c.company||'';
+  document.getElementById('cfContact').value = c.contact||'';
+  document.getElementById('cfRole').value = c.role||'';
+  document.getElementById('cfPhone').value = c.phone||'';
+  document.getElementById('cfEmail').value = c.email||'';
+  document.getElementById('cfSocial').value = c.social||'';
+  document.getElementById('cfSum').value = c.sum||'';
+  document.getElementById('cfSource').value = c.source||'manual';
+  document.getElementById('cfNextStep').value = c.nextStep||'';
+  document.getElementById('cfNextDate').value = c.nextDate||'';
+  document.getElementById('cfNotes').value = c.notes||'';
+  document.getElementById('cfRejectReason').value = c.rejectReason||'';
+  renderCrmStatusPills(curClientStatus);
+  document.getElementById('cfRejectWrap').style.display = curClientStatus==='lost'?'block':'none';
+  cTab('main');
+  renderClientActivities();
+  document.getElementById('clientOverlay').classList.add('open');
+}
+
+function closeClientModal(){
+  document.getElementById('clientOverlay').classList.remove('open');
+}
+document.getElementById('clientOverlay').addEventListener('click',e=>{if(e.target.id==='clientOverlay')closeClientModal();});
+
+function renderClientActivities(){
+  const list = document.getElementById('cActivityList');
+  if(!cActivities.length){
+    list.innerHTML = '<div class="empty-s">Активностей пока нет</div>';
+    return;
+  }
+  // newest first
+  const sorted = [...cActivities].sort((a,b)=>(b.ts||0)-(a.ts||0));
+  list.innerHTML = sorted.map(a=>`
+    <div class="activity-item">
+      <div class="activity-meta">
+        <div class="activity-author">${(a.author||'').split('@')[0]||a.author||''}</div>
+        <div class="activity-date">${a.ts?new Date(a.ts).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):''}</div>
+      </div>
+      <div class="activity-text">${a.text}</div>
+    </div>
+  `).join('');
+}
+
+function addClientActivity(){
+  const inp = document.getElementById('cActivityIn');
+  const v = inp.value.trim();
+  if(!v) return;
+  const userName = document.getElementById('userEmail')?.textContent || 'Пользователь';
+  cActivities.push({author:userName, text:v, ts:Date.now()});
+  inp.value='';
+  renderClientActivities();
+}
+
+function saveClient(){
+  const g = id=>{ const el=document.getElementById(id); return el?el.value.trim():''; };
+  const data = {
+    id: editClientId || ('c_'+Date.now().toString()),
+    company: g('cfCompany'),
+    contact: g('cfContact'),
+    role: g('cfRole'),
+    phone: g('cfPhone'),
+    email: g('cfEmail'),
+    social: g('cfSocial'),
+    sum: g('cfSum'),
+    source: g('cfSource'),
+    status: curClientStatus,
+    nextStep: g('cfNextStep'),
+    nextDate: g('cfNextDate'),
+    notes: g('cfNotes'),
+    rejectReason: curClientStatus==='lost' ? g('cfRejectReason') : '',
+    activities: cActivities
+  };
+  if(!data.company && !data.contact){
+    toast('Укажи компанию или контакт','⚠️');
+    return;
+  }
+  closeClientModal();
+  if(window.saveClientToFirestore){
+    window.saveClientToFirestore(data).then(()=>toast(editClientId?'Клиент обновлён — синхронизировано ☁️':'Клиент создан — синхронизировано ☁️','✨'))
+      .catch(()=>toast('Ошибка сохранения','❌'));
+  }
+}
+
+function deleteClient(){
+  if(!editClientId) return;
+  closeClientModal();
+  if(window.deleteClientFromFirestore){
+    window.deleteClientFromFirestore(editClientId).then(()=>toast('Клиент удалён','🗑️')).catch(()=>toast('Ошибка удаления','❌'));
+  }
+}
+
+// ── ИМПОРТ ИЗ EXCEL ───────────────────────────────────────────
+let importData = [];
+
+function openImportModal(){
+  importData = [];
+  document.getElementById('importFile').value='';
+  document.getElementById('importPreview').innerHTML='';
+  document.getElementById('importOverlay').classList.add('open');
+}
+function closeImportModal(){
+  document.getElementById('importOverlay').classList.remove('open');
+}
+document.getElementById('importOverlay').addEventListener('click',e=>{if(e.target.id==='importOverlay')closeImportModal();});
+
+document.getElementById('importFile').addEventListener('change', e=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ev=>{
+    try{
+      const wb = XLSX.read(ev.target.result, {type:'binary'});
+      importData = [];
+      wb.SheetNames.forEach(sheetName=>{
+        const ws = wb.Sheets[sheetName];
+        const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+        const isExisting = /существ/i.test(sheetName);
+        const isPotential = /потенциал/i.test(sheetName);
+        if(!isExisting && !isPotential) return;
+
+        // skip header rows: row 0 (titles), row 1 (sub-headers) for "existing"
+        let startRow = 2;
+        if(isPotential) startRow = 1;
+
+        for(let i=startRow;i<rows.length;i++){
+          const r = rows[i];
+          if(!r || r.every(x=>!x && x!==0)) continue;
+          if(isExisting){
+            const [num, company, contact, phone, email, comment, status] = r;
+            if(!company && !contact) continue;
+            importData.push({
+              company: String(company||'').trim(),
+              contact: String(contact||'').trim(),
+              role: String(comment||'').trim(),
+              phone: String(phone||'').trim(),
+              email: String(email||'').trim(),
+              social: '',
+              source: 'existing',
+              status: 'new',
+              notes: '',
+            });
+          } else {
+            const [num, company, contact, role, vk, comment] = r;
+            if(!company && !contact) continue;
+            importData.push({
+              company: String(company||'').trim(),
+              contact: String(contact||'').trim(),
+              role: String(role||'').trim(),
+              phone: '',
+              email: '',
+              social: String(vk||'').trim(),
+              source: 'potential',
+              status: 'new',
+              notes: String(comment||'').trim(),
+            });
+          }
+        }
+      });
+      const preview = document.getElementById('importPreview');
+      if(!importData.length){
+        preview.innerHTML = '<div class="empty-s">Не найдено подходящих строк</div>';
+        return;
+      }
+      preview.innerHTML = `<div style="font-size:11px;color:var(--ink2);margin-bottom:8px">Найдено записей: <b>${importData.length}</b></div>`
+        + importData.slice(0,8).map(c=>`<div class="import-row"><span style="flex:1">${c.company||c.contact}</span><span style="color:var(--ink3)">${c.source==='existing'?'существующий':'потенциальный'}</span></div>`).join('')
+        + (importData.length>8?`<div class="import-row" style="color:var(--ink3)">… и ещё ${importData.length-8}</div>`:'');
+    } catch(err){
+      console.error(err);
+      document.getElementById('importPreview').innerHTML = '<div class="empty-s">Ошибка чтения файла</div>';
+    }
+  };
+  reader.readAsBinaryString(file);
+});
+
+async function runImport(){
+  if(!importData.length){ toast('Сначала выбери файл','⚠️'); return; }
+  if(!window.saveClientToFirestore){ toast('Нет соединения с базой','❌'); return; }
+  let count=0;
+  for(const c of importData){
+    const data = {...c, id:'c_'+Date.now().toString()+'_'+(count++), activities:[], sum:'', nextStep:'', nextDate:'', rejectReason:''};
+    try{ await window.saveClientToFirestore(data); }catch(e){ console.error(e); }
+  }
+  closeImportModal();
+  toast(`Импортировано клиентов: ${count}`,'✨');
+}
+
+// ── ОТЧЁТЫ ────────────────────────────────────────────────────
+window.dailyReports = window.dailyReports || [];
+let reportsUnsubscribed = false;
+
+function renderCrmReports(body){
+  const today = new Date().toISOString().slice(0,10);
+  body.innerHTML = `
+    <div class="msec">Отчёт за сегодня (${new Date().toLocaleDateString('ru-RU')})</div>
+    <textarea class="report-textarea" id="reportToday" placeholder="Что сделано сегодня: звонки, встречи, отправленные КП, договорённости..."></textarea>
+    <div style="margin-top:10px;display:flex;justify-content:flex-end">
+      <button class="crm-btn" onclick="submitDailyReport()">Сохранить отчёт</button>
+    </div>
+    <div class="msec" style="margin-top:24px">История отчётов</div>
+    <div id="reportsList"><div class="empty-s">Загрузка…</div></div>
+  `;
+  loadReports();
+}
+
+async function loadReports(){
+  // reports loaded via firestore module bridge
+  if(window.fetchAllReports){
+    const reports = await window.fetchAllReports();
+    window.dailyReports = reports;
+    renderReportsList();
+  } else {
+    document.getElementById('reportsList').innerHTML = '<div class="empty-s">Недоступно</div>';
+  }
+}
+
+function renderReportsList(){
+  const el = document.getElementById('reportsList');
+  if(!el) return;
+  if(!window.dailyReports.length){
+    el.innerHTML = '<div class="empty-s">Отчётов пока нет</div>';
+    return;
+  }
+  const sorted = [...window.dailyReports].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  el.innerHTML = sorted.map(r=>`
+    <div class="report-row">
+      <div class="report-row-hdr">
+        <div class="report-row-date">${new Date(r.date).toLocaleDateString('ru-RU',{day:'2-digit',month:'long',year:'numeric'})}</div>
+        <div class="report-row-author">${(r.author||'').split('@')[0]}</div>
+      </div>
+      <div class="report-row-text">${r.text||''}</div>
+    </div>
+  `).join('');
+}
+
+async function submitDailyReport(){
+  const text = document.getElementById('reportToday').value.trim();
+  if(!text){ toast('Опиши, что было сделано','⚠️'); return; }
+  const date = new Date().toISOString().slice(0,10);
+  if(window.saveDailyReport){
+    await window.saveDailyReport({date, text});
+    toast('Отчёт сохранён','✨');
+    loadReports();
+  }
+}
+
+// ── АНАЛИТИКА ПРОДАЖ ──────────────────────────────────────────
+function renderCrmAnalytics(body){
+  const cls = window.clients;
+  const total = cls.length;
+  const won = cls.filter(c=>c.status==='won');
+  const lost = cls.filter(c=>c.status==='lost');
+  const inWork = cls.filter(c=>!['won','lost'].includes(c.status||'new'));
+  const sumWon = won.reduce((s,c)=>s+(Number(c.sum)||0),0);
+  const sumPipeline = inWork.reduce((s,c)=>s+(Number(c.sum)||0),0);
+  const conv = total ? Math.round(won.length/total*100) : 0;
+
+  const funnelCounts = CRM_ST_ORDER.map(k=>({key:k,...CRM_ST[k],count:cls.filter(c=>(c.status||'new')===k).length}));
+  const maxCount = Math.max(1,...funnelCounts.map(f=>f.count));
+
+  // overdue next steps
+  const overdue = cls.filter(c=>c.nextDate && daysUntil(c.nextDate)<0 && !['won','lost'].includes(c.status||'new'));
+
+  body.innerHTML = `
+    <div class="ana-kpis">
+      <div class="aka"><div class="aka-icon">👥</div><div class="aka-val">${total}</div><div class="aka-lbl">Всего клиентов</div></div>
+      <div class="aka"><div class="aka-icon">🤝</div><div class="aka-val">${won.length}</div><div class="aka-lbl">Сделок закрыто</div></div>
+      <div class="aka"><div class="aka-icon">💰</div><div class="aka-val">${fmt(sumWon)}</div><div class="aka-lbl">Сумма сделок, ₽</div></div>
+      <div class="aka"><div class="aka-icon">📈</div><div class="aka-val">${conv}%</div><div class="aka-lbl">Конверсия в сделку</div></div>
+    </div>
+    <div class="ana-row c2">
+      <div class="cbox">
+        <div class="cbox-t">Воронка по этапам</div>
+        ${funnelCounts.map(f=>`
+          <div class="hbr">
+            <div class="hbl">${f.label}</div>
+            <div class="hbw"><div class="hbf" style="width:${f.count/maxCount*100}%;background:${f.c}"></div></div>
+            <div class="hbv">${f.count}</div>
+          </div>
+        `).join('')}
+      </div>
+      <div class="cbox">
+        <div class="cbox-t">Прогноз / в работе</div>
+        <div class="aka-val" style="font-size:30px;margin-bottom:4px">${fmt(sumPipeline)} ₽</div>
+        <div class="aka-lbl" style="margin-bottom:14px">Потенциальная сумма по открытым сделкам</div>
+        <div class="cbox-t">Отказы</div>
+        <div class="aka-val" style="font-size:22px">${lost.length}</div>
+      </div>
+    </div>
+    <div class="ana-row c2">
+      <div class="cbox">
+        <div class="cbox-t">Просроченные следующие шаги</div>
+        ${overdue.length?overdue.map(c=>`
+          <div class="hbr">
+            <div class="hbl" style="min-width:auto;flex:1">${c.company||c.contact}</div>
+            <div class="hbv" style="color:var(--fire)">${c.nextDate?new Date(c.nextDate).toLocaleDateString('ru-RU'):''}</div>
+          </div>
+        `).join(''):'<div class="empty-s">Просрочек нет 🎉</div>'}
+      </div>
+      <div class="cbox">
+        <div class="cbox-t">Причины отказов</div>
+        ${lost.length?(()=>{
+          const reasons={};
+          lost.forEach(c=>{const r=c.rejectReason||'не указана';reasons[r]=(reasons[r]||0)+1;});
+          const maxR=Math.max(1,...Object.values(reasons));
+          return Object.entries(reasons).map(([r,n])=>`
+            <div class="hbr">
+              <div class="hbl">${r}</div>
+              <div class="hbw"><div class="hbf" style="width:${n/maxR*100}%;background:var(--fire)"></div></div>
+              <div class="hbv">${n}</div>
+            </div>`).join('');
+        })():'<div class="empty-s">Отказов нет</div>'}
+      </div>
+    </div>
+  `;
+}
+
 </script>
+
 
 </body>
 
