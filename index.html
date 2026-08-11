@@ -2853,7 +2853,7 @@ function openNewTask(){
   fillOwnerSelect(myEmail());
   renderTagPicker();
   renderTaskLinks();
-  document.getElementById('taskOverlay').classList.add('on');
+  document.getElementById('taskOverlay').classList.add('open');
 }
 
 function openEditTask(id){
@@ -2873,11 +2873,11 @@ function openEditTask(id){
   fillOwnerSelect(t.owner);
   renderTagPicker();
   renderTaskLinks();
-  document.getElementById('taskOverlay').classList.add('on');
+  document.getElementById('taskOverlay').classList.add('open');
 }
 
 function closeTaskModal(){
-  document.getElementById('taskOverlay').classList.remove('on');
+  document.getElementById('taskOverlay').classList.remove('open');
 }
 
 function saveTask(){
@@ -2895,10 +2895,9 @@ function saveTask(){
     deadline: g('tfDeadline'),
     reminderOn: document.getElementById('tfReminderOn').checked,
     reminderLead: Number(document.getElementById('tfReminderLead').value)||1,
-    links: [...tkLinks],
-    createdBy: editTaskId ? undefined : myEmail()
+    links: [...tkLinks]
   };
-  if(!editTaskId){ data.reminderSent = false; }
+  if(!editTaskId){ data.createdBy = myEmail(); data.reminderSent = false; }
   closeTaskModal();
   const sd=document.getElementById('savingDot'); if(sd) sd.style.display='flex';
   if(window.saveTaskToFirestore){
@@ -3467,6 +3466,7 @@ function closeClientModal(){
   document.getElementById('clientOverlay').classList.remove('open');
 }
 document.getElementById('clientOverlay').addEventListener('click',e=>{if(e.target.id==='clientOverlay')closeClientModal();});
+document.getElementById('taskOverlay').addEventListener('click',e=>{if(e.target.id==='taskOverlay')closeTaskModal();});
 
 function renderClientActivities(){
   const list = document.getElementById('cActivityList');
