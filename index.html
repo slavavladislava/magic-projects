@@ -44,7 +44,8 @@ const ALLOWED_EMAILS = [
   "topgunychta@gmail.com",
   "topgunteam@yandex.ru",
   "mavrrita@yandex.ru",
-  "mavrenkovaveronika@gmail.com"
+  "mavrenkovaveronika@gmail.com",
+  "9602457174dimitriy@gmail.com"
 ];
 
 window.ALLOWED_EMAILS = ALLOWED_EMAILS;
@@ -149,6 +150,16 @@ function applyRoleUI(){
   const salesNav = document.getElementById('navSales');
   if(salesNav){
     salesNav.style.display = (window.currentRole==='owner'||window.currentRole==='sales') ? '' : 'none';
+  }
+  // Роль 'member': видит общий список проектов и свои задачи,
+  // но не видит дашборд "Сегодня" и "Аналитику".
+  const isMember = window.currentRole === 'member';
+  const todayNav = document.getElementById('navToday');
+  const analyticsNav = document.getElementById('navAnalytics');
+  if(todayNav) todayNav.style.display = isMember ? 'none' : '';
+  if(analyticsNav) analyticsNav.style.display = isMember ? 'none' : '';
+  if(isMember && typeof nav === 'function'){
+    nav('projects');
   }
 }
 
