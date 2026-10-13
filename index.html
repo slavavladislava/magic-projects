@@ -399,6 +399,118 @@ body.is-dragging{cursor:grabbing;user-select:none}
 .info-box{background:rgba(212,174,99,.06);border:1px solid rgba(212,174,99,.2);border-radius:12px;padding:12px 14px;font-size:13px;color:var(--ink2);margin-bottom:14px}
 #taskOverlay{z-index:70}
 
+
+/* ── КАРТОЧКИ ЗАДАЧ v2 ── */
+.col-b>*{flex-shrink:0}
+.tcard{padding:13px 14px 12px}
+.tcard .tt{font-size:14px;font-weight:600;line-height:1.38;padding-right:24px;overflow-wrap:anywhere}
+.tc-top{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;padding-right:24px}
+.tc-top .tlabel{margin:0}
+.tlabel.l-plan{background:rgba(255,255,255,.06);color:var(--brand2);border:1px solid rgba(212,174,99,.3)}
+.tcard .td{margin-top:4px}
+.tc-ctx{display:flex;gap:5px;flex-wrap:wrap;margin-top:9px}
+.tc-ctx .tag{max-width:100%}
+.tc-subs{display:flex;align-items:center;gap:8px;margin-top:9px;font-size:11px;color:var(--ink3);font-weight:700}
+.tc-subs .prog{flex:1;height:3px}
+.tcard .tm{margin-top:10px;padding-top:9px;border-top:1px solid var(--hair)}
+.more{border:1px dashed var(--line2);background:transparent;border-radius:10px;padding:8px;color:var(--brand2);font-weight:600;font-size:12px}
+.more:hover{border-color:#f7e2a6;background:var(--brand-soft)}
+
+/* ── НАВИГАЦИЯ ПО ДНЯМ ── */
+.daynav{display:inline-flex;align-items:center;gap:6px}
+.daynav>button:not(.btn){width:32px;height:32px;border-radius:50%;border:1px solid var(--line2);background:rgba(255,255,255,.02);color:var(--brand2);font-size:16px}
+.daynav>button:not(.btn):hover{border-color:var(--brand)}
+.daynav b{font-family:var(--f-disp);font-size:21px;font-weight:600;min-width:0;padding:0 6px}
+
+/* ── ПЛАН ДНЯ ── */
+.plan-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:14px;align-items:start}
+.plan-col{border-radius:var(--r);padding:16px;box-shadow:var(--sh);border:1px solid transparent;background:var(--surface) padding-box,var(--gold-line) border-box;animation:rise .45s both}
+.plan-h{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.plan-who{flex:1;min-width:0}
+.plan-who b{display:block;font-family:var(--f-disp);font-size:22px;font-weight:600;line-height:1.1}
+.plan-who span{font-size:11px;color:var(--ink3);letter-spacing:.1em;text-transform:uppercase;font-weight:700}
+.ring{--p:0;width:48px;height:48px;border-radius:50%;flex-shrink:0;display:grid;place-items:center;
+  background:conic-gradient(#e9cd85 calc(var(--p)*1%),rgba(255,255,255,.07) 0)}
+.ring span{width:40px;height:40px;border-radius:50%;background:#171113;display:grid;place-items:center;font-size:11.5px;font-weight:700;color:var(--brand2);font-variant-numeric:tabular-nums}
+.plan-add{display:flex;gap:6px;margin-bottom:10px}
+.plan-add .inp{border-radius:999px;padding:9px 14px}
+.plan-add .btn{border-radius:50%;width:38px;padding:0}
+.plan-list{display:flex;flex-direction:column}
+.plan-item{display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid var(--hair);border-radius:8px;transition:background .2s}
+.plan-item:last-child{border-bottom:none}
+.plan-item:hover{background:rgba(212,174,99,.04)}
+.pi-main{flex:1;min-width:0;cursor:pointer}
+.pi-t{font-weight:600;font-size:13.5px;line-height:1.35}
+.pi-s{font-size:11.5px;color:var(--ink3);margin-top:2px}
+.plan-item.done .pi-t{text-decoration:line-through;text-decoration-color:var(--brand);color:var(--ink3)}
+
+/* ── АКТИВНОСТЬ ── */
+.who-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.who-card{text-align:left;border-radius:14px;padding:12px 13px;border:1px solid transparent;background:var(--surface) padding-box,var(--gold-line-soft) border-box;box-shadow:var(--sh);transition:transform .2s,box-shadow .2s}
+.who-card:hover{transform:translateY(-2px);box-shadow:var(--sh-hover)}
+.who-card.on{background:linear-gradient(160deg,rgba(212,174,99,.16),rgba(20,14,16,.9)) padding-box,var(--gold-line) border-box}
+.who-card.quiet{opacity:.6}
+.who-card b{font-size:13.5px}
+.who-now{display:flex;flex-direction:column;gap:2px;margin-top:9px;font-size:11.5px;color:var(--ink2)}
+.who-now span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.who-now span::first-letter{color:var(--brand)}
+.feed{position:relative;padding-left:4px}
+.feed::before{content:'';position:absolute;left:62px;top:6px;bottom:6px;width:1px;background:linear-gradient(180deg,rgba(247,226,166,.6),rgba(212,174,99,.08))}
+.feed-i{display:flex;align-items:flex-start;gap:12px;padding:8px 0}
+.feed-time{width:44px;flex-shrink:0;font-size:11.5px;color:var(--ink3);font-variant-numeric:tabular-nums;padding-top:4px;text-align:right}
+.feed-dot{width:24px;height:24px;border-radius:50%;flex-shrink:0;display:grid;place-items:center;font-size:11px;font-weight:700;background:#1a1215;border:1px solid var(--line2);color:var(--brand2);position:relative;z-index:1}
+.feed-i.t-done .feed-dot,.feed-i.t-closed .feed-dot{background:var(--gold);color:#2a1c08;border-color:transparent;box-shadow:0 0 12px rgba(212,174,99,.5)}
+.feed-i.t-acct .feed-dot{color:#f7e2a6;border-color:#f7e2a6}
+.feed-i.t-client .feed-dot{color:var(--blue)}
+.feed-main{flex:1;min-width:0;font-size:13px;line-height:1.5;padding-top:2px;color:var(--ink2)}
+.feed-main b{color:var(--ink)}
+.feed-main .av{display:inline-grid;vertical-align:-5px;margin-right:2px}
+.feed-main .tag{cursor:pointer;margin-left:4px;vertical-align:1px}
+
+/* ── ШКАЛА ПРОЕКТОВ ── */
+.tl-legend{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:10px}
+.tl-legend span{display:inline-flex;align-items:center;gap:6px}
+.tl-bar-mini{width:18px;height:8px;border-radius:4px;background:var(--gold)}
+.tl-dl-mini{width:8px;height:8px;transform:rotate(45deg);background:#ff6f8c}
+.tl-dot-mini{width:8px;height:8px;border-radius:50%;background:#f7e2a6}
+.tl-dot-mini.over{background:#ff6f8c}
+.tl-wrap{overflow-x:auto;border-radius:var(--r);border:1px solid transparent;background:var(--surface) padding-box,var(--gold-line-soft) border-box;box-shadow:var(--sh)}
+.tl{--tl-name:270px;position:relative;width:max-content;min-width:100%}
+.tl-row{display:flex;border-bottom:1px solid var(--hair);min-height:84px}
+.tl-row:last-child{border-bottom:none}
+.tl-head{min-height:52px;position:sticky;top:0;z-index:4}
+.tl-name{position:sticky;left:0;z-index:3;width:var(--tl-name);flex-shrink:0;padding:12px 14px;background:linear-gradient(90deg,#171113 85%,rgba(23,17,19,.85));border-right:1px solid var(--line);cursor:pointer}
+.tl-head .tl-name{cursor:default;display:flex;align-items:flex-end}
+.tl-name b{font-size:13.5px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tl-name:hover b{color:#f7e2a6}
+.tl-prog{display:flex;align-items:center;gap:6px;margin-top:7px;font-size:11px;color:var(--ink3);font-weight:700}
+.tl-prog .prog{width:70px;height:4px}
+.tl-prog .tag{padding:0 6px}
+.tl-now{font-size:11.5px;color:var(--ink2);margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tl-track{position:relative;flex-shrink:0;background-image:repeating-linear-gradient(90deg,transparent 0 calc(var(--dw) - 1px),rgba(255,255,255,.035) calc(var(--dw) - 1px) var(--dw))}
+.tl-head .tl-track{background:rgba(15,10,12,.92)}
+.tl-months{position:absolute;left:0;right:0;top:6px;height:18px}
+.tl-m{position:absolute;font-family:var(--f-sc);font-size:14px;color:var(--brand2);letter-spacing:.06em;padding-left:4px;border-left:1px solid var(--line2);white-space:nowrap}
+.tl-days{position:absolute;left:0;right:0;bottom:4px;height:18px}
+.tl-d{position:absolute;text-align:center;font-size:10px;color:var(--ink3);font-variant-numeric:tabular-nums}
+.tl-d.we{color:#6f6358}
+.tl-bar{position:absolute;top:50%;transform:translateY(-50%);height:26px;min-width:8px;border-radius:8px;cursor:pointer;
+  background:linear-gradient(115deg,color-mix(in srgb,var(--c) 70%,#000),var(--c) 55%,color-mix(in srgb,var(--c) 75%,#fff));
+  box-shadow:0 0 18px -4px var(--c),inset 0 1px 0 rgba(255,255,255,.35);display:flex;align-items:center;overflow:visible;transition:transform .2s}
+.tl-bar:hover{transform:translateY(-50%) scaleY(1.12)}
+.tl-bar span{position:absolute;left:calc(100% + 8px);white-space:nowrap;font-size:11px;font-weight:700;color:var(--ink2)}
+.tl-dot{position:absolute;top:calc(50% + 20px);width:7px;height:7px;margin-left:-3.5px;border-radius:50%;background:#f7e2a6;box-shadow:0 0 6px rgba(247,226,166,.7)}
+.tl-dot.over{background:#ff6f8c;box-shadow:0 0 8px var(--burg-glow)}
+.tl-dl{position:absolute;top:calc(50% - 26px);width:9px;height:9px;margin-left:-4.5px;transform:rotate(45deg);background:#ff6f8c;box-shadow:0 0 8px var(--burg-glow)}
+.tl-today{position:absolute;top:0;bottom:0;width:1px;background:linear-gradient(180deg,#f7e2a6,rgba(247,226,166,.15));z-index:5;pointer-events:none}
+.tl-today span{position:absolute;top:28px;left:4px;font-size:9.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#2a1c08;background:var(--gold);border-radius:4px;padding:1px 5px}
+@media (max-width:860px){
+  .tl{--tl-name:170px}
+  .tl-name{padding:10px}
+  .tl-now{display:none}
+  .daynav b{font-size:18px}
+}
+
 /* ── ПЛАНШЕТ И ТЕЛЕФОН ── */
 @media (max-width:1100px){
   .home-grid{grid-template-columns:1fr}
@@ -509,6 +621,7 @@ body.is-dragging{cursor:grabbing;user-select:none}
         <div class="field"><label class="lbl">Начать</label><input class="inp" id="tfStartDate" type="date"></div>
         <div class="field"><label class="lbl">Дедлайн</label><input class="inp" id="tfDeadline" type="date"></div>
       </div>
+      <div class="field"><label class="lbl">В план дня на</label><input class="inp" id="tfDayPlan" type="date" style="max-width:240px"></div>
       <div class="field"><label class="lbl">Метка</label><div class="labels" id="tfLabels"></div></div>
       <div class="field"><label class="lbl">Описание</label><textarea class="inp" id="tfDesc" placeholder="Подробности, договорённости…"></textarea></div>
       <div class="field">
@@ -614,11 +727,13 @@ body.is-dragging{cursor:grabbing;user-select:none}
       <div class="field" id="pfRoleWrap"><label class="lbl">Доступ в системе</label>
         <select class="inp" id="pfRole">
           <option value="partner">Партнёр — всё, включая деньги и аналитику</option>
+          <option value="assistant">Ассистент — все проекты и задачи команды, план дня</option>
           <option value="sales">Продажи — проекты, задачи и CRM</option>
           <option value="pm">Менеджер проектов — проекты и задачи</option>
           <option value="member">Участник — проекты и задачи</option>
         </select>
       </div>
+      <label class="field row small" id="pfMoneyWrap" style="font-weight:600"><input type="checkbox" id="pfMoney"> Вносит суммы проектов (цена, аванс, расходы) — без аналитики и дашборда</label>
       <div class="field"><label class="lbl">За что отвечает</label><textarea class="inp" id="pfResp" placeholder="Закупки, наградная продукция, документы по тендерам…"></textarea></div>
       <div class="field"><label class="lbl">Направления (через запятую)</label><input class="inp" id="pfDirs" placeholder="Top Gun, Laserwar, ФФС МО, Корпоративный спорт"></div>
       <div class="g2">
@@ -649,18 +764,18 @@ body.is-dragging{cursor:grabbing;user-select:none}
 // ── СОСТОЯНИЕ ────────────────────────────────────────────────
 const S = {
   user: null, role: 'pm',
-  users: [], projects: [], taskSets: {}, tasks: [], clients: [], finance: {}, reports: [],
+  users: [], projects: [], taskSets: {}, tasks: [], clients: [], finance: {}, reports: [], activity: [],
   loaded: { projects:false, tasks:false, users:false },
   view: 'home', param: null
 };
-const TV = { mode:'board', who:null, project:'', q:'' };            // задачи
+const TV = { mode:'board', who:null, project:'', q:'', allDone:false };            // задачи
 const PV = { q:'', f:'all', all:true, y:new Date().getFullYear(), m:new Date().getMonth() }; // проекты
 const PP = { id:null, tab:'board', draft:null, dirty:false, boardMode:'status', isNew:false }; // страница проекта
 const CV = { tab:'today', q:'', reportDraft:'' };                      // продажи
 const TM = { city:'all' };                                            // команда
 
 // ── СПРАВОЧНИКИ ──────────────────────────────────────────────
-const ROLES = { owner:'Руководитель', partner:'Партнёр', sales:'Продажи', pm:'Менеджер проектов', member:'Участник' };
+const ROLES = { owner:'Руководитель', partner:'Партнёр', assistant:'Ассистент', sales:'Продажи', pm:'Менеджер проектов', member:'Участник' };
 const ST = {
   red:  { label:'Нет данных', cls:'st-red',   c:'#e0476b' },
   amber:{ label:'В работе',   cls:'st-amber', c:'#d4ae63' },
@@ -727,6 +842,10 @@ function dueTag(s, done){
 }
 const isAdmin = () => S.role==='owner' || S.role==='partner';
 const isCRM = () => isAdmin() || S.role==='sales';
+const isAssistant = () => S.role==='assistant';
+const seesAll = () => isAdmin() || isAssistant();                  // видит задачи всей команды
+const canMoney = () => isAdmin() || !!(S.user && S.user.canMoney);  // вносит суммы проектов
+const usesPlan = () => isAdmin() || isAssistant();                  // план дня
 const me = () => S.user ? S.user.email : '';
 function toast(msg, icon){
   const el = document.createElement('div'); el.className='toast';
@@ -813,6 +932,7 @@ App.onTasks = (set, list) => {
 };
 App.onClients = list => { S.clients = list; refresh(); };
 App.onFinance = list => { S.finance = {}; list.forEach(f => S.finance[f.id] = f); refresh(); };
+App.onActivity = list => { S.activity = list; refresh(); };
 
 // ═════════════════════════════════════════════════════════════
 //  НАВИГАЦИЯ
@@ -822,6 +942,8 @@ function navItems(){
     { id:'home', ic:'☀️', t:'Мой день' },
     { id:'projects', ic:'📁', t:'Проекты' },
     { id:'tasks', ic:'✅', t:'Задачи', badge: myOverdue().length },
+    { id:'plan', ic:'📝', t:'План дня', show: usesPlan() },
+    { id:'activity', ic:'🕰', t:'Активность', show: isAdmin() },
     { id:'sales', ic:'🤝', t:'Продажи', show: isCRM(), badge: isCRM() ? salesDue().filter(c=>daysUntil(c.nextDate)<0).length : 0 },
     { id:'team', ic:'👥', t:'Команда' },
     { id:'warehouse', ic:'📦', t:'Склад' },
@@ -845,7 +967,7 @@ App.go = (view, param) => {
 };
 window.addEventListener('hashchange', () => { if(skipHash){ skipHash=false; return; } route(); });
 
-const TITLES = { home:'Мой день', projects:'Проекты', project:'Проект', tasks:'Задачи', sales:'Продажи',
+const TITLES = { home:'Мой день', projects:'Проекты', project:'Проект', tasks:'Задачи', sales:'Продажи', plan:'План дня', activity:'Активность',
   team:'Команда', warehouse:'Склад', analytics:'Аналитика', notifs:'Уведомления' };
 
 function route(){
@@ -853,7 +975,8 @@ function route(){
   const [v, p] = (location.hash.replace('#','') || 'home').split('/');
   let view = TITLES[v] ? v : 'home';
   if(view==='sales' && !isCRM()) view = 'home';
-  if(view==='analytics' && !isAdmin()) view = 'home';
+  if((view==='analytics' || view==='activity') && !isAdmin()) view = 'home';
+  if(view==='plan' && !usesPlan()) view = 'home';
   if(view!==v) history.replaceState(null, '', '#'+view);
   // уходим со страницы проекта с несохранёнными правками
   const curKey = PP.isNew ? 'new' : PP.id;
@@ -872,7 +995,7 @@ function route(){
 function mount(){
   $('pageTitle').textContent = S.view==='project' && PP.draft ? (PP.draft.name || 'Новый проект') : TITLES[S.view];
   const add = $('topAdd');
-  const lbl = { projects:'+ Проект', sales:'+ Клиент', team: S.role==='owner' ? '+ Человек' : null, warehouse:null, analytics:null, notifs:'+ Задача' }[S.view];
+  const lbl = { projects:'+ Проект', sales:'+ Клиент', team: S.role==='owner' ? '+ Человек' : null, warehouse:null, analytics:null, activity:null, plan:null, notifs:'+ Задача' }[S.view];
   add.textContent = lbl === undefined ? '+ Задача' : (lbl || '');
   add.classList.toggle('hidden', lbl === null);
   buildNav();
@@ -981,6 +1104,7 @@ VIEWS.home = {
       ${soon.length ? soon.map(projRow).join('') : '<div class="empty">В ближайшие 2 недели проектов нет</div>'}
       </div></div>`;
     if(isAdmin()) html += teamToday() + attentionCard();
+    else if(isAssistant()) html += teamToday();
     html += `</div></div>`;
     v.innerHTML = html;
   }
@@ -1062,35 +1186,39 @@ function tcard(t, opts={}){
   const subs = t.subtasks || [];
   const done = t.column==='done';
   const attn = !done && t.deadline && daysUntil(t.deadline)<0;
+  const sd = subs.filter(x=>x.d).length;
   return `<div class="tcard ${attn?'attn':''} ${done?'is-done':''}" data-drag="task" data-id="${esc(t.id)}" onclick="App.openTask('${esc(t.id)}')">
-    ${tag.c?`<span class="tlabel l-${esc(t.tag)}">${esc(tag.label)}</span>`:''}
     <button class="grip" title="Перетащить" onclick="event.stopPropagation()">⋮⋮</button>
-    <div class="tt" style="${done?'text-decoration:line-through;color:var(--ink3)':''}">${esc(t.title||'Без названия')}</div>
+    ${tag.c || t.dayPlan ? `<div class="tc-top">${tag.c?`<span class="tlabel l-${esc(t.tag)}">${esc(tag.label)}</span>`:''}${t.dayPlan && !done ? `<span class="tlabel l-plan">план ${esc(dshort(t.dayPlan))}</span>`:''}</div>` : ''}
+    <div class="tt">${esc(t.title||'Без названия')}</div>
     ${t.desc?`<div class="td">${esc(t.desc)}</div>`:''}
+    ${p||t.clientId?`<div class="tc-ctx">${p?`<span class="tag proj">📁 ${esc(p.name||'проект')}</span>`:''}${t.clientId?`<span class="tag cli">🤝 ${esc(t.clientName||'клиент')}</span>`:''}</div>`:''}
+    ${subs.length?`<div class="tc-subs"><div class="prog"><div style="width:${Math.round(sd/subs.length*100)}%"></div></div><span>${sd}/${subs.length}</span></div>`:''}
     <div class="tm">
-      ${dueTag(t.deadline, done)}
-      ${p?`<span class="tag proj">📁 ${esc(p.name||'проект')}</span>`:''}
-      ${t.clientId?`<span class="tag cli">🤝 ${esc(t.clientName||'клиент')}</span>`:''}
-      ${subs.length?`<span class="tag">☑ ${subs.filter(s=>s.d).length}/${subs.length}</span>`:''}
-      ${(t.links||[]).length?`<span class="tag">🔗 ${t.links.length}</span>`:''}
+      ${done ? `<span class="due fut">✓ ${t.doneAt ? 'выполнено '+esc(dshort(t.doneAt)) : 'выполнено'}</span>` : t.deadline ? dueTag(t.deadline, false) : '<span class="due fut">без срока</span>'}
+      ${(t.links||[]).length?`<span class="small muted">🔗 ${t.links.length}</span>`:''}
       <span class="spacer"></span>${av(t.owner,'sm')}
     </div>
   </div>`;
 }
 function boardHTML(list, opts={}){
   return `<div class="board">${TASK_COL_ORDER.map(k => {
-    const items = list.filter(t => (t.column||'projects')===k)
-      .sort((a,b)=>String(a.deadline||'9999').localeCompare(String(b.deadline||'9999')));
+    let items = list.filter(t => (t.column||'projects')===k);
+    if(k==='done') items.sort((a,b)=>String(b.doneAt||b.deadline||'').localeCompare(String(a.doneAt||a.deadline||'')));
+    else items.sort((a,b)=>String(a.deadline||'9999').localeCompare(String(b.deadline||'9999')));
+    const total = items.length, cut = k==='done' && !TV.allDone && total>5;
+    if(cut) items = items.slice(0,5);
     return `<div class="col" data-drop="${k}" data-dropkind="task">
-      <div class="col-h"><span class="dot" style="background:${TASK_COLS[k].c}"></span><b>${TASK_COLS[k].label}</b><span class="n">${items.length}</span>
+      <div class="col-h"><span class="dot" style="background:${TASK_COLS[k].c}"></span><b>${TASK_COLS[k].label}</b><span class="n">${total}</span>
         <button class="add" title="Добавить" onclick="App.openTask(null,{column:'${k}'${opts.projectId?`,projectId:'${esc(opts.projectId)}'`:''}})">+</button></div>
-      <div class="col-b">${items.map(t=>tcard(t,opts)).join('') || '<div class="empty small">Перетащи сюда</div>'}</div>
+      <div class="col-b">${items.map(t=>tcard(t,opts)).join('') || '<div class="empty small">Перетащи сюда</div>'}
+        ${k==='done' && total>5 ? `<button class="more" onclick="App.toggleAllDone()">${cut ? 'Показать все · '+total : 'Свернуть'}</button>` : ''}</div>
     </div>`; }).join('')}</div>`;
 }
 VIEWS.tasks = {
   shell(){
     const users = activeUsers();
-    const whoOpts = isAdmin()
+    const whoOpts = seesAll()
       ? [['all','Все'],['mine','Мои'],...users.filter(u=>u.id!==me()).map(u=>[u.id,u.name||u.id])]
       : [['mine','Мои'],['created','Поручил я'],['all','Все доступные']];
     const projs = upcomingProjects();
@@ -1119,6 +1247,7 @@ VIEWS.tasks = {
   }
 };
 App.taskMode = m => { TV.mode = m; mount(); };
+App.toggleAllDone = () => { TV.allDone = !TV.allDone; refresh(); };
 App.taskWho = w => { TV.who = w; mount(); };
 App.taskProject = p => { TV.project = p; VIEWS.tasks.body(); };
 App.taskSearch = q => { TV.q = q; VIEWS.tasks.body(); };
@@ -1129,12 +1258,14 @@ App.toggleDone = id => {
   const patch = done ? { column: t.prevColumn && t.prevColumn!=='done' ? t.prevColumn : 'inprogress' } : { column:'done', prevColumn: t.column||'projects', doneAt: iso() };
   Object.assign(t, patch); refresh();
   if(!done) FX.fireworks(FX.px, FX.py, 1);
+  logAct(done?'move':'done', done ? `вернул(а) в работу «${t.title}»` : `выполнил(а) «${t.title}»`, { taskId:id, projectId:t.projectId });
   DB.patchTask(id, patch).then(()=>toast(done?'Задача снова в работе':'Задача выполнена','✨')).catch(()=>toast('Не получилось сохранить','❌'));
 };
 function moveTask(id, col){
   const t = S.tasks.find(x => x.id===id); if(!t || t.column===col) return;
   const patch = { column:col };
   if(col==='done'){ patch.prevColumn = t.column; patch.doneAt = iso(); FX.fireworks(FX.px, FX.py, 1); }
+  logAct(col==='done'?'done':'move', col==='done' ? `выполнил(а) «${t.title}»` : `перевёл(а) «${t.title}» в «${TASK_COLS[col].label}»`, { taskId:id, projectId:t.projectId });
   Object.assign(t, patch); refresh();
   DB.patchTask(id, patch).then(()=>toast('Перемещено в «'+TASK_COLS[col].label+'»')).catch(()=>toast('Нет прав на эту задачу','❌'));
 }
@@ -1164,6 +1295,7 @@ App.openTask = (id, preset={}) => {
   $('tfClient').value = d.clientId || '';
   $('tfStartDate').value = d.startDate || '';
   $('tfDeadline').value = d.deadline || '';
+  $('tfDayPlan').value = d.dayPlan || preset.dayPlan || '';
   $('tfReminderOn').checked = !!d.reminderOn;
   $('tfReminderLead').value = d.reminderLead || 1;
   $('tfDel').classList.toggle('hidden', !t);
@@ -1202,13 +1334,16 @@ App.saveTask = () => {
     column: $('tfColumn').value || 'projects',
     tag: tTag, projectId, shared: !!projectId,
     clientId, clientName: client ? (client.company||client.contact||'') : (clientId ? (editTask&&editTask.clientName)||'' : ''),
-    startDate: $('tfStartDate').value, deadline,
+    startDate: $('tfStartDate').value, deadline, dayPlan: $('tfDayPlan').value,
     reminderOn: $('tfReminderOn').checked, reminderLead: Number($('tfReminderLead').value)||1,
     subtasks: tSubs.map(s=>({...s})), links: [...tLinks]
   };
   if(editTask && editTask.deadline !== deadline) data.reminderSent = false;
   if(data.column==='done' && (!editTask || editTask.column!=='done')){ data.doneAt = iso(); FX.fireworks(innerWidth/2, innerHeight/2.5, 1); }
   const isNew = !editTask;
+  if(isNew) logAct('task', data.owner!==me() ? `поставил(а) задачу «${title}» для ${uname(data.owner)}` : `создал(а) задачу «${title}»`, { taskId:data.id, projectId });
+  else if(editTask.column!==data.column) logAct(data.column==='done'?'done':'move', data.column==='done' ? `выполнил(а) «${title}»` : `перевёл(а) «${title}» в «${TASK_COLS[data.column].label}»`, { taskId:data.id, projectId });
+  else logAct('edit', `обновил(а) задачу «${title}»`, { taskId:data.id, projectId });
   App.closeModal('taskOverlay');
   DB.saveTask(data).then(()=>toast(isNew ? (data.owner!==me() ? 'Задача поставлена: '+uname(data.owner) : 'Задача создана') : 'Задача обновлена','✅'))
     .catch(e=>{ console.error(e); toast('Не получилось сохранить задачу','❌'); });
@@ -1327,7 +1462,7 @@ function loadDraft(){
 }
 function projTabs(){
   return [['board','Доска задач'],['details','Детали'],['acct','Бухгалтерия'],['team','Команда и чек-лист'],['files','Файлы и обсуждение'],['remind','Напоминания']]
-    .concat(isAdmin()?[['finance','🔒 Финансы']]:[]);
+    .concat(canMoney()?[['finance','🔒 Финансы']]:[]);
 }
 VIEWS.project = {
   shell(){
@@ -1475,8 +1610,14 @@ function renderPane(){
       return;
     }
     case 'finance': {
-      if(!isAdmin()){ el.innerHTML=''; return; }
+      if(!canMoney()){ el.innerHTML=''; return; }
       const pr = Number(p.price||0), ad = Number(p.advance||0), ex = Number(p.expenses||0);
+      if(!isAdmin()){
+        el.innerHTML = `<div class="form-card"><div class="info-box">🔒 Суммы видят только руководитель, партнёр и ты. В списках проектов их нет.</div>
+          <div class="g3">${fld('price','Цена проекта, ₽','number')}${fld('advance','Аванс получен, ₽','number')}${fld('expenses','Расходы, ₽','number')}</div>
+          <p class="small muted">Внеси суммы и нажми «Сохранить».</p></div>`;
+        return;
+      }
       el.innerHTML = `<div class="form-card"><div class="info-box">🔒 Этот раздел видите только ты и партнёр. Остальные не видят сумм ни здесь, ни в списках.</div>
         <div class="g3">${fld('price','Сумма проекта, ₽','number')}${fld('advance','Аванс получен, ₽','number')}${fld('expenses','Затраты, ₽','number')}</div>
         <div class="fin-grid" style="margin-top:6px">
@@ -1578,8 +1719,18 @@ App.saveProject = () => {
   d.id = isNew ? Date.now().toString() : PP.id;
   if(isNew){ d.createdBy = me(); d.createdAt = iso(); }
   const jobs = [DB.saveProject(d)];
+  const old = isNew ? null : projBy(d.id);
+  if(isNew) logAct('project', `создал(а) проект «${d.name}»`, { projectId:d.id });
+  else {
+    const oa = (old&&old.acct)||{}, na = d.acct||{};
+    const ticked = AK.filter(k => na[k] && !oa[k]);
+    if(ticked.length) logAct('acct', `отметил(а) в «${d.name}»: ${ticked.map(k=>ALKL[k].toLowerCase()).join(', ')}`, { projectId:d.id });
+    if(AK.every(k=>na[k]) && !AK.every(k=>oa[k])) logAct('closed', `закрыл(а) проект «${d.name}»`, { projectId:d.id });
+    if(old && (d.comments||[]).length > (old.comments||[]).length) logAct('comment', `оставил(а) комментарий в «${d.name}»`, { projectId:d.id });
+    if(!ticked.length && !(old && (d.comments||[]).length > (old.comments||[]).length)) logAct('project', `обновил(а) проект «${d.name}»`, { projectId:d.id });
+  }
   const f = fin(d.id);
-  if(isAdmin() && (money3.price!==(f.price||'') || money3.advance!==(f.advance||'') || money3.expenses!==(f.expenses||''))) jobs.push(DB.saveFinance(d.id, money3));
+  if(canMoney() && (money3.price!==(f.price||'') || money3.advance!==(f.advance||'') || money3.expenses!==(f.expenses||''))) jobs.push(DB.saveFinance(d.id, money3));
   PP.dirty = false;
   Promise.all(jobs).then(() => {
     toast(isNew ? 'Проект создан' : 'Проект сохранён', '✅');
@@ -1689,6 +1840,7 @@ function crmList(el){
 function moveClient(id, status){
   const c = S.clients.find(x => x.id===id); if(!c || (c.status||'new')===status) return;
   const data = { ...c, status }; delete data.updatedAt;
+  logAct('client', `перевёл(а) клиента «${c.company||c.contact}» на этап «${CRM_ST[status].label}»`, {});
   c.status = status; refresh();
   DB.saveClient(data).then(()=>toast('Этап: '+CRM_ST[status].label)).catch(()=>toast('Не получилось сохранить','❌'));
 }
@@ -1777,6 +1929,8 @@ App.saveClient = () => {
   delete data.updatedAt;
   if(!data.company && !data.contact){ toast('Укажи компанию или контакт','⚠️'); return; }
   const isNew = !editClient;
+  if(isNew) logAct('client', `добавил(а) клиента «${data.company||data.contact}»`, {});
+  else if((editClient.status||'new')!==cStatus) logAct('client', `перевёл(а) клиента «${data.company||data.contact}» на этап «${CRM_ST[cStatus].label}»`, {});
   App.closeModal('clientOverlay');
   DB.saveClient(data).then(()=>toast(isNew?'Клиент добавлен':'Клиент сохранён','✅')).catch(()=>toast('Не получилось сохранить','❌'));
 };
@@ -1849,6 +2003,7 @@ function personCard(u){
   return `<div class="person ${u.active===false?'off':''}">
     <div class="person-h">${av(u.id,'lg')}<div style="min-width:0;flex:1"><div class="nm">${esc(u.name||u.id)}</div><div class="ps">${esc(u.position||'')}</div></div>
       <span class="role-b role-${u.role||'pm'}">${ROLES[u.role||'pm']||''}</span></div>
+    ${u.canMoney && !['owner','partner'].includes(u.role) && S.role==='owner' ? '<div class="small" style="margin-top:8px;color:var(--brand2)">💰 вносит суммы проектов</div>' : ''}
     ${u.city?`<div class="small" style="margin-top:10px">📍 ${esc(u.city)}</div>`:''}
     ${u.responsibility?`<div class="resp">${esc(u.responsibility)}</div>`:`<div class="resp muted">${canEdit?'Зона ответственности не заполнена':''}</div>`}
     ${dirs.length?`<div class="chips" style="margin-top:10px">${dirs.map(d=>`<span class="tag">${esc(d)}</span>`).join('')}</div>`:''}
@@ -1885,6 +2040,8 @@ App.openPerson = email => {
   const editableRole = owner && (!u || u.role!=='owner');
   $('pfRoleWrap').classList.toggle('hidden', !editableRole);
   $('pfRole').value = (u && u.role && u.role!=='owner') ? u.role : 'pm';
+  $('pfMoneyWrap').classList.toggle('hidden', !editableRole);
+  $('pfMoney').checked = !!(u && u.canMoney);
   $('pfHint').classList.toggle('hidden', !!u);
   $('pfOff').classList.toggle('hidden', !(owner && u && u.role!=='owner'));
   $('pfOff').textContent = u && u.active===false ? 'Вернуть доступ' : 'Закрыть доступ';
@@ -1902,6 +2059,7 @@ App.savePerson = () => {
     if(!editPerson){ data.role = $('pfRole').value; data.active = true; data.createdAt = iso(); }
     else if(editPerson.role!=='owner') data.role = $('pfRole').value;
     else data.role = 'owner';
+    if(data.role!=='owner') data.canMoney = $('pfMoney').checked;
   }
   App.closeModal('personOverlay');
   DB.saveUser(email, data).then(()=>toast(editPerson?'Профиль сохранён':'Добавлен(а) в команду: '+name,'✅')).catch(e=>{ console.error(e); toast('Не получилось сохранить — проверь правила Firestore','❌'); });
@@ -1914,6 +2072,171 @@ App.togglePersonActive = () => {
   App.closeModal('personOverlay');
   DB.saveUser(email, { active: !off }).then(()=>toast(off?'Доступ закрыт':'Доступ возвращён','✅')).catch(()=>toast('Не получилось','❌'));
 };
+
+// ═════════════════════════════════════════════════════════════
+//  ЖУРНАЛ ДЕЙСТВИЙ
+// ═════════════════════════════════════════════════════════════
+function logAct(type, text, extra={}){
+  if(!S.user || !window.DB || !DB.logActivity) return;
+  DB.logActivity({ type, text, who: me(), day: iso(), ts: Date.now(), projectId: extra.projectId||'', taskId: extra.taskId||'' }).catch(()=>{});
+}
+const hhmm = ts => { const d = new Date(ts); return pad(d.getHours())+':'+pad(d.getMinutes()); };
+function shiftDay(dayIso, n){ const d = parseD(dayIso); d.setDate(d.getDate()+n); return iso(d); }
+function dayTitle(dayIso){
+  const n = daysUntil(dayIso), d = parseD(dayIso);
+  const base = d.getDate()+' '+MOg[d.getMonth()]+', '+DAYS[d.getDay()];
+  return n===0 ? 'Сегодня · '+base : n===-1 ? 'Вчера · '+base : n===1 ? 'Завтра · '+base : base;
+}
+function dayNav(cur, fn){
+  return `<div class="daynav"><button onclick="${fn}(-1)" aria-label="Предыдущий день">‹</button><b>${esc(dayTitle(cur))}</b><button onclick="${fn}(1)" aria-label="Следующий день">›</button>
+    ${cur!==iso()?`<button class="btn sm ghost" onclick="${fn}(0)">Сегодня</button>`:''}</div>`;
+}
+
+// ═════════════════════════════════════════════════════════════
+//  ПЛАН ДНЯ (руководитель, партнёр, ассистент)
+// ═════════════════════════════════════════════════════════════
+const PL = { day: iso(), focus: null };
+function planPeople(){
+  const list = activeUsers().filter(u => ['owner','partner','assistant'].includes(u.role));
+  if(!list.find(u => u.id===me())) list.unshift({ id:me(), name:S.user.name, role:S.role });
+  return list;
+}
+VIEWS.plan = {
+  shell(){ return `<div class="toolbar">${dayNav(PL.day,'App.planDay')}<span class="spacer"></span><span class="small muted">Дела на день попадают и в общие задачи человека</span></div><div id="planBody"></div>`; },
+  body(){
+    const el = $('planBody'); if(!el) return;
+    const today = PL.day===iso();
+    el.innerHTML = `<div class="plan-grid">${planPeople().map((u,i) => {
+      const items = S.tasks.filter(t => t.owner===u.id && t.dayPlan===PL.day)
+        .sort((a,b)=>(a.column==='done')-(b.column==='done') || String(a.createdAt||'').localeCompare(String(b.createdAt||'')));
+      const carry = today ? S.tasks.filter(t => t.owner===u.id && t.dayPlan && t.dayPlan<PL.day && t.column!=='done') : [];
+      const done = items.filter(t=>t.column==='done').length;
+      const pct = items.length ? Math.round(done/items.length*100) : 0;
+      return `<section class="plan-col">
+        <header class="plan-h">${av(u.id,'lg')}<div class="plan-who"><b>${esc(u.name||u.id)}</b><span>${esc(ROLES[u.role]||'')}</span></div>
+          <div class="ring" style="--p:${pct}"><span>${done}/${items.length}</span></div></header>
+        <div class="plan-add"><input class="inp" id="planIn${i}" placeholder="+ Добавить дело${u.id===me()?' себе':''}…" onkeydown="if(event.key==='Enter'){App.planAdd(${i});event.preventDefault()}"><button class="btn sm" onclick="App.planAdd(${i})">+</button></div>
+        <div class="plan-list">${items.map(t => planItem(t)).join('') || '<div class="empty">Дел на этот день нет</div>'}</div>
+        ${carry.length?`<div class="grp-h red">Не сделано раньше · ${carry.length}</div>${carry.map(t=>planItem(t,true)).join('')}`:''}
+      </section>`; }).join('')}</div>`;
+    if(PL.focus!==null){ const inp = $('planIn'+PL.focus); if(inp) inp.focus(); }
+  }
+};
+function planItem(t, carry){
+  const done = t.column==='done', p = t.projectId && projBy(t.projectId);
+  return `<div class="plan-item ${done?'done':''}">
+    <button class="chk ${done?'on':''}" onclick="App.toggleDone('${esc(t.id)}')" aria-label="${done?'Вернуть':'Готово'}">${done?'✓':''}</button>
+    <div class="pi-main" onclick="App.openTask('${esc(t.id)}')"><div class="pi-t">${esc(t.title)}</div>
+      ${(() => { const bits = [carry ? 'с '+dshort(t.dayPlan) : '', p ? '📁 '+p.name : '', t.createdBy && t.createdBy!==t.owner ? 'от '+uname(t.createdBy) : ''].filter(Boolean);
+        return bits.length ? `<div class="pi-s">${esc(bits.join(' · '))}</div>` : ''; })()}</div>
+    ${carry?`<button class="btn sm ghost" onclick="App.planMove('${esc(t.id)}')">На сегодня</button>`:''}
+  </div>`;
+}
+App.planDay = n => { PL.day = n===0 ? iso() : shiftDay(PL.day, n); PL.focus = null; mount(); };
+App.planAdd = i => {
+  const inp = $('planIn'+i), title = (inp.value||'').trim(); if(!title) return;
+  const u = planPeople()[i];
+  const data = { id: uid(), title, owner: u.id, createdBy: me(), createdAt: iso(), column:'projects', tag:'none', projectId:'', shared:false,
+    clientId:'', clientName:'', desc:'', startDate:'', deadline: PL.day, dayPlan: PL.day, reminderOn:false, reminderLead:1, reminderSent:false, subtasks:[], links:[] };
+  inp.value = ''; PL.focus = i;
+  S.tasks.push(data); VIEWS.plan.body();
+  DB.saveTask(data).then(()=>logAct('task', u.id===me() ? `запланировал(а) «${title}» на ${dshort(PL.day)}` : `поставил(а) в план ${uname(u.id)} «${title}» на ${dshort(PL.day)}`, { taskId:data.id }))
+    .catch(()=>toast('Не получилось сохранить — проверь правила Firestore','❌'));
+};
+App.planMove = id => {
+  const t = S.tasks.find(x=>x.id===id); if(!t) return;
+  const patch = { dayPlan: iso() }; if(!t.deadline || t.deadline < iso()) patch.deadline = iso();
+  Object.assign(t, patch); refresh();
+  DB.patchTask(id, patch).then(()=>toast('Перенесено на сегодня')).catch(()=>toast('Не получилось','❌'));
+};
+
+// ═════════════════════════════════════════════════════════════
+//  АКТИВНОСТЬ (руководитель и партнёр)
+// ═════════════════════════════════════════════════════════════
+const AC = { tab:'feed', day: iso(), who:'all' };
+const ACT_IC = { task:'✚', done:'✓', move:'➜', edit:'✎', project:'◆', acct:'₽', closed:'★', comment:'❝', client:'☎' };
+VIEWS.activity = {
+  shell(){
+    return `<div class="tabs">${[['feed','Лента дня'],['timeline','Шкала проектов']].map(([k,l])=>`<button class="tab ${AC.tab===k?'on':''}" onclick="App.acTab('${k}')">${l}</button>`).join('')}</div><div id="acBody"></div>`;
+  },
+  body(){
+    const el = $('acBody'); if(!el || !isAdmin()) return;
+    if(AC.tab==='timeline') return timelineHTML(el);
+    const dayActs = S.activity.filter(a => a.day===AC.day);
+    const people = activeUsers();
+    const cards = people.map(u => {
+      const mine = dayActs.filter(a=>a.who===u.id);
+      const doneN = mine.filter(a=>a.type==='done').length;
+      const now = S.tasks.filter(t => t.owner===u.id && ['inprogress','urgent'].includes(t.column)).slice(0,2);
+      const last = mine.slice().sort((a,b)=>b.ts-a.ts)[0];
+      return `<button class="who-card ${AC.who===u.id?'on':''} ${mine.length?'':'quiet'}" onclick="App.acWho('${esc(u.id)}')">
+        <div class="row" style="flex-wrap:nowrap">${av(u.id)}<div style="min-width:0;flex:1;text-align:left"><b>${esc(u.name||u.id)}</b>
+          <div class="small muted">${mine.length ? `${mine.length} ${plural(mine.length,'действие','действия','действий')} · ${doneN} ${plural(doneN,'выполнена','выполнено','выполнено')}` : 'нет действий'}${last?' · '+hhmm(last.ts):''}</div></div></div>
+        ${now.length?`<div class="who-now">${now.map(t=>`<span>● ${esc(t.title)}</span>`).join('')}</div>`:'<div class="who-now muted">в работе ничего</div>'}
+      </button>`;
+    }).join('');
+    const feed = dayActs.filter(a => AC.who==='all' || a.who===AC.who).sort((a,b)=>b.ts-a.ts);
+    el.innerHTML = `<div class="toolbar">${dayNav(AC.day,'App.acDay')}<span class="spacer"></span>${AC.who!=='all'?`<button class="chip on" onclick="App.acWho('all')">${esc(uname(AC.who))} ✕</button>`:''}</div>
+      <div class="who-grid">${cards}</div>
+      <div class="card" style="margin-top:16px"><div class="card-h"><h3>Лента</h3><span class="small muted">${feed.length} ${plural(feed.length,'событие','события','событий')}</span></div><div class="card-b">
+      ${feed.length ? `<div class="feed">${feed.map(a => { const p = a.projectId && projBy(a.projectId); return `<div class="feed-i t-${esc(a.type)}">
+        <span class="feed-time">${hhmm(a.ts)}</span><span class="feed-dot">${ACT_IC[a.type]||'•'}</span>
+        <div class="feed-main">${av(a.who,'sm')} <b>${esc(uname(a.who))}</b> ${esc(a.text)}
+          ${p?` <button class="tag proj" onclick="App.go('project','${esc(p.id)}')">📁 ${esc(p.name)}</button>`:''}</div></div>`; }).join('')}</div>`
+        : `<div class="empty">За этот день действий нет. Лента заполняется сама: новые задачи, перемещения, выполнение, бухгалтерия, клиенты.</div>`}
+      </div></div>`;
+  }
+};
+App.acTab = t => { AC.tab = t; mount(); };
+App.acDay = n => { AC.day = n===0 ? iso() : shiftDay(AC.day, n); VIEWS.activity.body(); };
+App.acWho = w => { AC.who = AC.who===w ? 'all' : w; VIEWS.activity.body(); };
+
+function timelineHTML(el){
+  const DW = innerWidth < 700 ? 20 : 26;
+  const t0 = new Date(); t0.setHours(0,0,0,0);
+  const start = new Date(t0); start.setDate(start.getDate()-10);
+  const end = new Date(t0); end.setDate(end.getDate()+56);
+  const N = Math.round((end-start)/86400000)+1;
+  const off = s => Math.round((parseD(s)-start)/86400000);
+  const list = S.projects.filter(p => p.date && off(p.dateEnd||p.date)>=0 && off(p.date)<N).sort(projSort);
+  const noDate = S.projects.filter(p => !p.date).length;
+  let months = '', days = '';
+  for(let i=0;i<N;i++){
+    const d = new Date(start); d.setDate(d.getDate()+i);
+    if(d.getDate()===1 || i===0 || (i===8 && d.getDate()>1 && d.getDate()<24)) months += `<span class="tl-m" style="left:${i*DW}px">${MO[d.getMonth()]}</span>`;
+    const we = d.getDay()===0 || d.getDay()===6;
+    days += `<span class="tl-d ${we?'we':''}" style="left:${i*DW}px;width:${DW}px">${d.getDate()}</span>`;
+  }
+  const todayX = 10*DW + DW/2;
+  const rows = list.map(p => {
+    const st = autoSt(p), tl = projTasks(p.id), s = taskStats(tl);
+    const a = Math.max(off(p.date),0), b = Math.min(off(p.dateEnd||p.date), N-1);
+    const active = tl.filter(t => ['inprogress','urgent'].includes(t.column));
+    const now = active[0] || tl.find(t=>t.column==='projects');
+    const people = [...new Set(tl.filter(t=>t.column!=='done').map(t=>t.owner))].slice(0,4);
+    const dots = tl.filter(t => t.deadline && t.column!=='done' && off(t.deadline)>=0 && off(t.deadline)<N)
+      .map(t => `<i class="tl-dot ${daysUntil(t.deadline)<0?'over':''}" style="left:${off(t.deadline)*DW+DW/2}px" title="${esc(uname(t.owner)+': '+t.title+' — '+dshort(t.deadline))}"></i>`).join('');
+    const dl = p.deadline && off(p.deadline)>=0 && off(p.deadline)<N ? `<i class="tl-dl" style="left:${off(p.deadline)*DW+DW/2}px" title="Дедлайн подготовки ${esc(dshort(p.deadline))}"></i>` : '';
+    return `<div class="tl-row">
+      <div class="tl-name" onclick="App.go('project','${esc(p.id)}')">
+        <div class="row" style="flex-wrap:nowrap;gap:6px"><span class="st ${ST[st].cls}" style="padding:2px 6px" title="${ST[st].label}"></span><b>${esc(p.name)}</b></div>
+        <div class="tl-prog"><div class="prog"><div style="width:${s.pct}%"></div></div><span>${s.done}/${s.total}</span>${s.over?`<span class="tag red">${s.over}</span>`:''}<span class="av-stack">${people.map(e=>av(e,'sm')).join('')}</span></div>
+        ${now?`<div class="tl-now">${esc(uname(now.owner))}: ${esc(now.title)}</div>`:'<div class="tl-now muted">задач нет</div>'}
+      </div>
+      <div class="tl-track" style="width:${N*DW}px">${dots}${dl}
+        <div class="tl-bar" style="left:${a*DW}px;width:${(b-a+1)*DW}px;--c:${ST[st].c}" onclick="App.go('project','${esc(p.id)}')"><span>${esc(dshort(p.date))}${p.dateEnd&&p.dateEnd!==p.date?' – '+esc(dshort(p.dateEnd)):''}</span></div>
+      </div></div>`;
+  }).join('');
+  el.innerHTML = `<div class="tl-legend small muted"><span><i class="tl-bar-mini"></i> даты проекта</span><span><i class="tl-dl-mini"></i> дедлайн подготовки</span><span><i class="tl-dot-mini"></i> срок задачи</span><span><i class="tl-dot-mini over"></i> просрочено</span></div>
+    <div class="tl-wrap"><div class="tl" style="--dw:${DW}px">
+      <div class="tl-row tl-head"><div class="tl-name"><span class="small muted">${list.length} ${plural(list.length,'проект','проекта','проектов')} на шкале</span></div>
+        <div class="tl-track" style="width:${N*DW}px"><div class="tl-months">${months}</div><div class="tl-days">${days}</div></div></div>
+      ${rows || '<div class="empty" style="padding:30px">В ближайшие 8 недель проектов нет</div>'}
+      <div class="tl-today" style="left:calc(var(--tl-name) + ${todayX}px)"><span>сегодня</span></div>
+    </div></div>
+    ${noDate?`<p class="small muted" style="margin-top:8px">Ещё ${noDate} ${plural(noDate,'проект','проекта','проектов')} без даты — на шкале не показаны.</p>`:''}`;
+  const w = el.querySelector('.tl-wrap'); if(w) w.scrollLeft = Math.max(0, 7*DW);
+}
 
 // ═════════════════════════════════════════════════════════════
 //  СКЛАД (заготовка)
@@ -2149,7 +2472,7 @@ App.signOut = () => { if(confirm('Выйти из системы?')) DB.signOut(
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, signOut, onAuthStateChanged }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getFirestore, collection, doc, setDoc, updateDoc, deleteDoc, getDoc, getDocs, onSnapshot,
+import { getFirestore, collection, doc, setDoc, addDoc, updateDoc, deleteDoc, getDoc, getDocs, onSnapshot,
   serverTimestamp, query, where, deleteField }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
@@ -2212,7 +2535,8 @@ onAuthStateChanged(auth, async user => {
   }
   me = email;
   const role = isOwner ? 'owner' : ((profile && profile.role) || 'pm');
-  App.setUser({ email, role, photo: user.photoURL || '',
+  const canMoney = role==='owner' || role==='partner' || !!(profile && profile.canMoney);
+  App.setUser({ email, role, canMoney, photo: user.photoURL || '',
     name: (profile && profile.name) || user.displayName || email.split('@')[0] });
 
   const admin = role === 'owner' || role === 'partner';
@@ -2230,8 +2554,8 @@ onAuthStateChanged(auth, async user => {
     if (isOwner && !migrated) { migrated = true; migrateFinance(list); }
   }, logErr('projects')));
 
-  // Задачи: руководитель и партнёр видят все; остальные — свои, поручённые ими и задачи проектов
-  if (admin) {
+  // Задачи: руководитель, партнёр и ассистент видят все; остальные — свои, поручённые ими и задачи проектов
+  if (admin || role === 'assistant') {
     subs.push(onSnapshot(collection(db, 'tasks'), snap => App.onTasks('all', listOf(snap)), logErr('tasks')));
   } else {
     const col = collection(db, 'tasks');
@@ -2240,7 +2564,12 @@ onAuthStateChanged(auth, async user => {
     subs.push(onSnapshot(query(col, where('shared', '==', true)), s => App.onTasks('shared', listOf(s)), logErr('tasks')));
   }
   if (crm) subs.push(onSnapshot(collection(db, 'clients'), s => App.onClients(listOf(s)), logErr('clients')));
-  if (admin) subs.push(onSnapshot(collection(db, 'finance'), s => App.onFinance(listOf(s)), logErr('finance')));
+  if (canMoney) subs.push(onSnapshot(collection(db, 'finance'), s => App.onFinance(listOf(s)), logErr('finance')));
+  if (admin) {
+    const from = new Date(); from.setDate(from.getDate() - 45);
+    const fromIso = from.getFullYear() + '-' + String(from.getMonth()+1).padStart(2,'0') + '-' + String(from.getDate()).padStart(2,'0');
+    subs.push(onSnapshot(query(collection(db, 'activity'), where('day', '>=', fromIso)), s => App.onActivity(listOf(s)), logErr('activity')));
+  }
 });
 
 // Первый вход владельца: создаём карточки «Команды» для всех из стартового списка
@@ -2298,6 +2627,7 @@ window.DB = {
   saveClient: d => setDoc(doc(db, 'clients', d.id), { ...d, ...stamp() }),
   deleteClient: id => deleteDoc(doc(db, 'clients', id)),
   saveUser: (email, d) => setDoc(doc(db, 'users', email), { ...d, email, ...stamp() }, { merge: true }),
+  logActivity: d => addDoc(collection(db, 'activity'), d),
   saveReport: d => setDoc(doc(db, 'dailyReports', `${me}_${d.date}`), { ...d, author: me, updatedAt: serverTimestamp() }),
   fetchReports: async () => listOf(await getDocs(collection(db, 'dailyReports')))
 };
