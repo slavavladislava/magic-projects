@@ -11,6 +11,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Cormorant+SC:wght@500;600&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <style>
 /* ═══ MAGIC PROJECTS · NOIR ═══ тёмный, золото, белый, бургунди */
 *{box-sizing:border-box;margin:0;padding:0}
@@ -511,6 +513,169 @@ body.is-dragging{cursor:grabbing;user-select:none}
   .daynav b{font-size:18px}
 }
 
+
+/* ── СКЛАД ── */
+.wh-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.wh-scan{padding:11px 20px;font-size:13.5px}
+.tab-n{display:inline-block;min-width:18px;padding:0 6px;border-radius:9px;background:rgba(255,255,255,.08);font-size:10.5px;margin-left:4px;color:var(--ink2)}
+.tab-n.hot{background:linear-gradient(120deg,#7d1630,#b02042);color:#fff;box-shadow:0 0 10px -2px var(--burg-glow)}
+.wh-sites{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+.wh-site{text-align:left;display:flex;flex-direction:column;gap:2px;padding:13px 15px;border-radius:14px;border:1px solid transparent;background:var(--surface) padding-box,var(--gold-line-soft) border-box;box-shadow:var(--sh);transition:transform .2s,box-shadow .2s;color:var(--ink)}
+.wh-site:hover{transform:translateY(-2px);box-shadow:var(--sh-hover)}
+.wh-site.on{background:linear-gradient(160deg,rgba(212,174,99,.18),rgba(20,14,16,.92)) padding-box,var(--gold-line) border-box}
+.wh-site .code{font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:10.5px;letter-spacing:.14em;color:var(--brand2)}
+.wh-site b{font-family:var(--f-disp);font-size:21px;font-weight:600;line-height:1.15}
+.wh-site span:last-child{font-size:11.5px;color:var(--ink3)}
+.wh-list{display:flex;flex-direction:column;gap:8px;padding-bottom:70px}
+.wh-group{border-radius:14px;border:1px solid transparent;background:var(--surface) padding-box,var(--gold-line-soft) border-box;box-shadow:var(--sh);overflow:hidden}
+.wh-group.open{background:var(--surface) padding-box,var(--gold-line) border-box}
+.wh-row{display:flex;align-items:center;gap:11px;padding:11px 14px;cursor:pointer;transition:background .2s}
+.wh-row:hover{background:rgba(212,174,99,.05)}
+.wh-list>.wh-row{border-radius:12px;border:1px solid var(--hair);background:rgba(255,255,255,.02)}
+.wh-units{border-top:1px solid var(--hair);padding:4px 0 6px;background:rgba(0,0,0,.18)}
+.wh-units .wh-row{padding:8px 14px 8px 26px}
+.wh-ic{width:26px;text-align:center;font-size:17px;flex-shrink:0;filter:saturate(.7)}
+.wh-main{flex:1;min-width:0}
+.wh-name{font-weight:600;font-size:13.5px;line-height:1.35}
+.wh-sub{font-size:12px;color:var(--ink3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wh-counts{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end;max-width:46%}
+.wh-chev{color:var(--brand2);font-size:12px;width:14px;text-align:center}
+.wh-inv{font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;font-size:11.5px;font-weight:600;letter-spacing:.04em;color:#f7e2a6;background:rgba(212,174,99,.1);border:1px solid rgba(212,174,99,.25);border-radius:6px;padding:2px 7px;white-space:nowrap;flex-shrink:0}
+.wh-inv.big{font-size:15px;padding:4px 10px;margin-top:8px;display:inline-block}
+.chk.part{background:rgba(212,174,99,.3);border-color:var(--brand);color:#f7e2a6}
+.ws{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;border-radius:999px;padding:3px 9px;white-space:nowrap;border:1px solid transparent;flex-shrink:0}
+.ws-in{color:var(--green);background:var(--green-soft);border-color:rgba(201,217,168,.22)}
+.ws-out{color:#2a1c08;background:var(--gold);background-size:200% 100%;animation:sheen 6s linear infinite}
+.ws-transit{color:var(--blue);background:var(--blue-soft);border-color:rgba(150,170,255,.25)}
+.ws-repair{color:var(--amber);background:var(--amber-soft);border-color:rgba(212,174,99,.3)}
+.ws-lost{color:#fff;background:linear-gradient(120deg,#7d1630,#b02042);box-shadow:0 0 10px -3px var(--burg-glow)}
+.ws-off{color:var(--ink3);background:rgba(255,255,255,.05);border-color:var(--hair)}
+.wh-selbar{position:fixed;left:calc(var(--side) + 30px);right:30px;bottom:18px;z-index:35;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 16px;border-radius:16px;
+  border:1px solid transparent;background:linear-gradient(160deg,#241a1e,#130e10) padding-box,var(--gold-line) border-box;box-shadow:var(--sh2),0 0 30px -10px rgba(212,174,99,.5);animation:pop .25s ease}
+.wh-selbar b{font-family:var(--f-disp);font-size:19px;margin-right:6px}
+.wh-move .card-h h3{font-family:var(--f-disp);letter-spacing:0;font-size:21px;color:var(--ink)}
+.wh-move-items{display:flex;gap:5px;flex-wrap:wrap}
+.eq-list{display:flex;flex-direction:column}
+.eq-row{display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:9px 0;border-bottom:1px solid var(--hair)}
+.eq-row:last-child{border-bottom:none}
+.eq-n{font-weight:700;color:var(--brand2);font-variant-numeric:tabular-nums}
+.eq-ids{flex-basis:100%;display:flex;gap:4px;flex-wrap:wrap}
+.eq-ids .tag{cursor:pointer;font-family:ui-monospace,Menlo,monospace;font-size:10.5px}
+.wh-card-top{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap}
+.wh-qr{text-align:center;flex-shrink:0}
+.wh-qr img{width:132px;height:132px;border-radius:12px;background:#fff;padding:6px;box-shadow:0 0 0 1px rgba(247,226,166,.6),0 10px 30px -10px rgba(212,174,99,.6);image-rendering:pixelated}
+.wh-where{font-family:var(--f-disp);font-size:24px;font-weight:600;margin-top:10px;line-height:1.15}
+.wa-lines{display:flex;flex-direction:column;max-height:46vh;overflow-y:auto}
+.imp-table{display:flex;flex-direction:column;gap:6px;max-height:52vh;overflow:auto}
+.imp-row{display:grid;grid-template-columns:minmax(0,1fr) 170px 82px 112px 70px 28px;gap:6px;align-items:center}
+.imp-row .t{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.imp-row .inp{padding:6px 8px;font-size:12.5px}
+/* сканер */
+.scan-modal{max-width:520px}
+.scan-view{position:relative;border-radius:16px;overflow:hidden;background:#000;aspect-ratio:1/1;max-width:100%}
+.scan-view video{width:100%;height:100%;object-fit:cover;display:block}
+.scan-frame{position:absolute;inset:14%;pointer-events:none}
+.scan-frame i{position:absolute;width:34px;height:34px;border-color:#f7e2a6;border-style:solid;filter:drop-shadow(0 0 6px rgba(247,226,166,.7))}
+.scan-frame i:nth-child(1){top:0;left:0;border-width:3px 0 0 3px;border-radius:10px 0 0 0}
+.scan-frame i:nth-child(2){top:0;right:0;border-width:3px 3px 0 0;border-radius:0 10px 0 0}
+.scan-frame i:nth-child(3){bottom:0;left:0;border-width:0 0 3px 3px;border-radius:0 0 0 10px}
+.scan-frame i:nth-child(4){bottom:0;right:0;border-width:0 3px 3px 0;border-radius:0 0 10px 0}
+.scan-line{position:absolute;left:6%;right:6%;height:2px;top:0;background:linear-gradient(90deg,transparent,#f7e2a6,transparent);box-shadow:0 0 12px #f7e2a6;animation:scanl 2.2s ease-in-out infinite alternate}
+@keyframes scanl{to{top:100%}}
+.scan-msg{margin-top:12px;font-weight:600;color:var(--brand2);min-height:20px}
+/* бирки */
+.labels-sheet{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.label{display:flex;gap:10px;align-items:center;background:#fff;color:#111;border-radius:8px;padding:8px 10px;border:1px solid #ddd}
+.label img{width:78px;height:78px;image-rendering:pixelated;flex-shrink:0}
+.lbl-t{min-width:0}
+.lbl-inv{font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:800;font-size:15px;letter-spacing:.03em}
+.lbl-name{font-size:11px;line-height:1.25;margin-top:3px;color:#333;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.lbl-brand{font-size:8.5px;color:#888;margin-top:4px;letter-spacing:.08em;text-transform:uppercase}
+@media print{
+  @page{margin:8mm}
+  body.printing-labels{background:#fff!important}
+  body.printing-labels *{visibility:hidden!important}
+  body.printing-labels #printArea,body.printing-labels #printArea *{visibility:visible!important}
+  body.printing-labels #printArea{position:absolute;left:0;top:0;width:100%}
+  body.printing-labels .labels-sheet{grid-template-columns:repeat(3,1fr);gap:3mm}
+  body.printing-labels .label{break-inside:avoid;border:1px dashed #bbb;border-radius:2mm;padding:2mm 3mm;height:30mm}
+  body.printing-labels .label img{width:24mm;height:24mm}
+  body.printing-labels .deco,body.printing-labels #fx{display:none!important}
+}
+@media (max-width:860px){
+  .wh-selbar{left:10px;right:10px;bottom:82px;padding:10px 12px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+  .wh-selbar::-webkit-scrollbar{display:none}
+  .wh-selbar b{font-size:16px;white-space:nowrap}
+  .wh-selbar .btn{flex-shrink:0}
+  .wh-sites{display:flex;overflow-x:auto;scrollbar-width:none;margin:0 -16px;padding:2px 16px}
+  .wh-sites::-webkit-scrollbar{display:none}
+  .wh-site{flex:0 0 190px}
+  .wh-counts{display:none}
+  .wh-top .search{flex-basis:100%}
+  .imp-row{grid-template-columns:1fr 1fr 70px;grid-auto-rows:auto}
+  .imp-row .t{grid-column:1/-1}
+  .wh-qr img{width:110px;height:110px}
+}
+
+
+/* ── СКЛАД: плитки направлений и таблица ── */
+.cat-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.cat-tile{position:relative;overflow:hidden;text-align:left;display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto auto;column-gap:10px;row-gap:2px;padding:14px 15px 12px;border-radius:16px;
+  border:1px solid transparent;background:var(--surface) padding-box,var(--gold-line-soft) border-box;box-shadow:var(--sh);color:var(--ink);transition:transform .2s,box-shadow .2s}
+.cat-tile:hover{transform:translateY(-2px);box-shadow:var(--sh-hover)}
+.cat-tile.zero{opacity:.55}
+.cat-tile.on{background:linear-gradient(155deg,rgba(212,174,99,.22),rgba(24,16,19,.94) 60%) padding-box,var(--gold-line) border-box;box-shadow:var(--sh-hover)}
+.cat-tile::after{content:'';position:absolute;top:-50%;left:-60%;width:40%;height:200%;background:linear-gradient(100deg,transparent,rgba(255,240,200,.14),transparent);transform:rotate(18deg) translateX(-120%);pointer-events:none}
+.cat-tile:hover::after{transform:rotate(18deg) translateX(560%);transition:transform 1.1s ease}
+.ct-ic{grid-row:1/3;font-size:26px;line-height:1;align-self:center;filter:saturate(.75)}
+.ct-name{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink2);align-self:end;line-height:1.2}
+.ct-total{font-family:var(--f-disp);font-size:30px;font-weight:600;line-height:1;font-variant-numeric:tabular-nums}
+.cat-tile.on .ct-total{background:var(--gold);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:sheen 5s linear infinite}
+.ct-sites{grid-column:1/-1;display:flex;gap:10px;margin-top:8px;padding-top:8px;border-top:1px solid var(--hair);font-size:12px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
+.ct-sites i{font-style:normal;display:inline-flex;gap:5px;align-items:baseline}
+.ct-sites em{font-style:normal;font-size:9.5px;letter-spacing:.12em;color:var(--brand2);font-weight:700}
+.mx-wrap{margin-top:16px;overflow-x:auto;border-radius:var(--r);border:1px solid transparent;background:var(--surface) padding-box,var(--gold-line-soft) border-box;box-shadow:var(--sh)}
+#whBody{padding-bottom:84px}
+.mx{width:100%;border-collapse:collapse;font-size:13.5px;min-width:720px}
+.mx th{position:sticky;top:0;z-index:2;background:#191215;text-align:left;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);padding:12px 10px;border-bottom:1px solid var(--line2);white-space:nowrap}
+.mx th.c-name{font-family:var(--f-sc);font-size:15px;letter-spacing:.06em;text-transform:none;color:var(--brand2)}
+.mx th.site{color:var(--ink)}
+.mx th.site em{display:block;font-style:normal;font-family:ui-monospace,Menlo,monospace;color:var(--brand2);font-size:10px;margin-bottom:2px}
+.mx td{padding:11px 10px;border-bottom:1px solid var(--hair);vertical-align:middle}
+.mx .n{text-align:center;font-variant-numeric:tabular-nums;width:92px}
+.mx td.n{font-weight:700;font-size:15px}
+.mx td.site{color:var(--ink);background:rgba(212,174,99,.035)}
+.mx td.out{color:#ecd29a}
+.mx td.tr{color:var(--blue)}
+.mx td.rep{color:var(--red)}
+.mx td.total,.mx th.total{border-left:1px solid var(--line)}
+.mx td.total{font-family:var(--f-disp);font-size:20px;color:#f7e2a6}
+.mx td.zero{color:#4f453f;font-weight:500}
+.mx .c-chk{width:40px;padding-left:14px;padding-right:0}
+.mx .c-name b{display:block;font-weight:600}
+.mx .c-name span{display:block;font-size:12px;color:var(--ink3);margin-top:1px}
+.mx .c-name span.unit{color:var(--brand2);font-size:11px}
+.mx .c-chev{width:30px;color:var(--brand2);text-align:center}
+.mx tr.m-row{cursor:pointer;transition:background .2s}
+.mx tr.m-row:hover{background:rgba(212,174,99,.06)}
+.mx tr.m-row.open,.mx tr.m-row.sel{background:rgba(212,174,99,.08)}
+.mx tr.cat-row td{padding:16px 14px 6px;font-family:var(--f-sc);font-size:16px;letter-spacing:.06em;color:var(--brand2);border-bottom:1px solid var(--line)}
+.mx tr.u-row>td{padding:0}
+.mx tfoot td{border-bottom:none;border-top:1px solid var(--line2);background:rgba(212,174,99,.05)}
+.mx .wh-units{border-top:none}
+@media (max-width:860px){
+  .cat-tiles{display:flex;overflow-x:auto;scrollbar-width:none;margin:0 -16px;padding:2px 16px 4px}
+  .cat-tiles::-webkit-scrollbar{display:none}
+  .cat-tile{flex:0 0 160px}
+  .mx{min-width:600px;font-size:13px}
+  .mx .n{width:62px}
+  .mx th.site .sn{display:none}
+  .mx th.site em{font-size:11px}
+  .mx th.c-name,.mx td.c-name{position:sticky;left:40px;z-index:1;background:#171113;min-width:150px}
+  .mx .c-chk{position:sticky;left:0;z-index:1;background:#171113}
+  .mx th.c-name,.mx th.c-chk{z-index:3}
+}
+
 /* ── ПЛАНШЕТ И ТЕЛЕФОН ── */
 @media (max-width:1100px){
   .home-grid{grid-template-columns:1fr}
@@ -750,6 +915,89 @@ body.is-dragging{cursor:grabbing;user-select:none}
     </div>
   </div>
 </div>
+
+<!-- ═══════════ СКЛАД: КАРТОЧКА ═══════════ -->
+<div class="overlay" id="whItemOverlay">
+  <div class="modal" style="max-width:680px">
+    <div class="modal-h"><h3 id="whItemTitle">Позиция</h3><button class="x" onclick="App.closeModal('whItemOverlay')">✕</button></div>
+    <div class="modal-b" id="whItemBody"></div>
+    <div class="modal-f"><button class="btn danger" id="wiDel" onclick="App.whDelete()">Удалить</button><span class="spacer"></span>
+      <button class="btn ghost" onclick="App.closeModal('whItemOverlay')">Закрыть</button><button class="btn" id="wiSave" onclick="App.whSaveItem()">Сохранить</button></div>
+  </div>
+</div>
+<!-- ═══════════ СКЛАД: ОПЕРАЦИЯ ═══════════ -->
+<div class="overlay" id="whActOverlay">
+  <div class="modal" style="max-width:600px">
+    <div class="modal-h"><h3 id="whActTitle">Операция</h3><button class="x" onclick="App.closeModal('whActOverlay')">✕</button></div>
+    <div class="modal-b" id="whActBody"></div>
+    <div class="modal-f"><span class="spacer"></span><button class="btn ghost" onclick="App.closeModal('whActOverlay')">Отмена</button><button class="btn" id="waGo" onclick="App.whActConfirm()">Готово</button></div>
+  </div>
+</div>
+<!-- ═══════════ СКЛАД: ДОБАВИТЬ ═══════════ -->
+<div class="overlay" id="whAddOverlay">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-h"><h3>Добавить оборудование</h3><button class="x" onclick="App.closeModal('whAddOverlay')">✕</button></div>
+    <div class="modal-b">
+      <div class="field"><label class="lbl">Как считаем</label><select class="inp" id="waKind" onchange="App.whAddPreview()"><option value="unit">Поштучно — у каждой единицы свой номер</option><option value="bulk">Партия — считаем количеством</option></select>
+        <div class="small muted" id="waKindHint" style="margin-top:6px"></div></div>
+      <div class="field"><label class="lbl">Название</label><input class="inp" id="waName" placeholder="Винтовка, шлем, ноутбук, скотч…"></div>
+      <div class="g2">
+        <div class="field"><label class="lbl">Модель</label><input class="inp" id="waModel" placeholder="ALPHATAG v.11"></div>
+        <div class="field"><label class="lbl">Категория</label><select class="inp" id="waCat" onchange="App.whAddPreview()"></select></div>
+      </div>
+      <div class="g2">
+        <div class="field"><label class="lbl">Склад</label><select class="inp" id="waSite" onchange="App.whAddPreview()"></select></div>
+        <div class="field"><label class="lbl" id="waQtyLbl">Сколько единиц</label><input class="inp" id="waQty" type="number" min="1" value="1" oninput="App.whAddPreview()"></div>
+      </div>
+      <div class="info-box small" id="waPreview"></div>
+      <div class="field"><label class="lbl">Заметка</label><input class="inp" id="waNote2" placeholder="Комплектность, где лежит"></div>
+      <div class="field" id="waCostWrap"><label class="lbl">🔒 Закупочная стоимость за единицу, ₽</label><input class="inp" id="waCost" type="number" style="max-width:220px"></div>
+    </div>
+    <div class="modal-f"><span class="spacer"></span><button class="btn ghost" onclick="App.closeModal('whAddOverlay')">Отмена</button><button class="btn" onclick="App.whAddGo()">Добавить</button></div>
+  </div>
+</div>
+<!-- ═══════════ СКЛАД: ИМПОРТ ═══════════ -->
+<div class="overlay" id="whImportOverlay">
+  <div class="modal" style="max-width:820px">
+    <div class="modal-h"><h3>Импорт оборудования из Excel</h3><button class="x" onclick="App.closeModal('whImportOverlay')">✕</button></div>
+    <div class="modal-b">
+      <p class="small muted" style="margin-bottom:12px">Подойдёт любой список с колонкой «Наименование» или «Название». Если есть «Кол-во», «Склад» (МСК / СПБ), «Категория», «Модель» — подхвачу. Категорию и склад можно поправить перед загрузкой.</p>
+      <input type="file" id="whImpFile" accept=".xlsx,.xls,.csv" class="inp">
+      <div id="whImpPreview" style="margin-top:14px"></div>
+    </div>
+    <div class="modal-f"><span class="spacer"></span><button class="btn ghost" onclick="App.closeModal('whImportOverlay')">Отмена</button><button class="btn" id="whImpGo" onclick="App.whImportGo()">Загрузить на склад</button></div>
+  </div>
+</div>
+<!-- ═══════════ СКЛАД: ВЫДАЧА ПО КОЛИЧЕСТВУ ═══════════ -->
+<div class="overlay" id="whPickOverlay">
+  <div class="modal" style="max-width:600px">
+    <div class="modal-h"><h3>Выдать со склада на проект</h3><button class="x" onclick="App.closeModal('whPickOverlay')">✕</button></div>
+    <div class="modal-b" id="whPickBody"></div>
+    <div class="modal-f"><span class="spacer"></span><button class="btn ghost" onclick="App.closeModal('whPickOverlay')">Отмена</button><button class="btn" onclick="App.whPickGo()">Дальше</button></div>
+  </div>
+</div>
+<!-- ═══════════ СКЛАД: БИРКИ ═══════════ -->
+<div class="overlay" id="whPrintOverlay">
+  <div class="modal" style="max-width:860px">
+    <div class="modal-h"><h3>Бирки · <span id="labelsCount"></span></h3><button class="x" onclick="App.closeModal('whPrintOverlay')">✕</button></div>
+    <div class="modal-b"><p class="small muted" style="margin-bottom:12px">Печатай на самоклеящейся бумаге А4 или обычной — потом в ламинат/скотч. QR открывает карточку вещи с телефона.</p><div id="printArea"></div></div>
+    <div class="modal-f"><span class="spacer"></span><button class="btn ghost" onclick="App.closeModal('whPrintOverlay')">Закрыть</button><button class="btn" onclick="App.whPrintGo()">🖨 Печать</button></div>
+  </div>
+</div>
+<!-- ═══════════ СКАНЕР ═══════════ -->
+<div class="overlay" id="scanOverlay">
+  <div class="modal scan-modal">
+    <div class="modal-h"><h3 id="scanTitle">Сканирование</h3><button class="x" onclick="App.scanClose()">✕</button></div>
+    <div class="modal-b">
+      <div class="scan-view"><video id="scanVideo" playsinline muted></video><div class="scan-frame"><i></i><i></i><i></i><i></i><span class="scan-line"></span></div></div>
+      <div class="scan-msg" id="scanMsg">Наведи камеру на QR-бирку</div>
+      <div class="addrow" style="margin-top:10px"><input class="inp" id="scanManual" placeholder="Или впиши номер: LT-MSK-014" onkeydown="if(event.key==='Enter'){App.scanManual();event.preventDefault()}"><button class="btn ghost" onclick="App.scanManual()">OK</button></div>
+      <div class="small muted" id="scanCount" style="margin-top:10px"></div>
+      <div id="scanList" style="margin-top:6px"></div>
+    </div>
+    <div class="modal-f"><span class="small muted" style="align-self:center">Сканируй подряд — всё попадёт в выбор</span><span class="spacer"></span><button class="btn" onclick="App.scanDone()">Готово</button></div>
+  </div>
+</div>
 <datalist id="cityList"><option>Москва</option><option>Санкт-Петербург</option><option>Всеволожск</option><option>Раменское</option></datalist>
 
 <div class="toasts" id="toasts"></div>
@@ -946,7 +1194,7 @@ function navItems(){
     { id:'activity', ic:'🕰', t:'Активность', show: isAdmin() },
     { id:'sales', ic:'🤝', t:'Продажи', show: isCRM(), badge: isCRM() ? salesDue().filter(c=>daysUntil(c.nextDate)<0).length : 0 },
     { id:'team', ic:'👥', t:'Команда' },
-    { id:'warehouse', ic:'📦', t:'Склад' },
+    { id:'warehouse', ic:'📦', t:'Склад', badge: (S.wh && S.wh.moves || []).filter(m=>m.status==='transit').length },
     { id:'analytics', ic:'📊', t:'Аналитика', show: isAdmin() }
   ].filter(i => i.show !== false);
 }
@@ -1461,7 +1709,7 @@ function loadDraft(){
   delete PP.draft.updatedAt;
 }
 function projTabs(){
-  return [['board','Доска задач'],['details','Детали'],['acct','Бухгалтерия'],['team','Команда и чек-лист'],['files','Файлы и обсуждение'],['remind','Напоминания']]
+  return [['board','Доска задач'],['details','Детали'],['acct','Бухгалтерия'],['equip','Оборудование'],['team','Команда и чек-лист'],['files','Файлы и обсуждение'],['remind','Напоминания']]
     .concat(canMoney()?[['finance','🔒 Финансы']]:[]);
 }
 VIEWS.project = {
@@ -1471,7 +1719,7 @@ VIEWS.project = {
       <div id="phead"></div>
       <div class="tabs">${projTabs().map(([k,l])=>`<button class="tab ${PP.tab===k?'on':''}" onclick="App.pTab('${k}')">${l}</button>`).join('')}</div>
       <div id="ppane"></div>
-      <div class="savebar ${PP.tab==='board'&&!PP.dirty?'hidden':''}" id="psave">
+      <div class="savebar ${['board','equip'].includes(PP.tab)&&!PP.dirty?'hidden':''}" id="psave">
         ${PP.dirty?'<span class="small muted" style="align-self:center">Есть несохранённые изменения</span>':''}
         ${!PP.isNew?`<button class="btn ghost" onclick="App.revertProject()" ${PP.dirty?'':'disabled'}>Отменить</button>`:''}
         <button class="btn" onclick="App.saveProject()">${PP.isNew?'Создать проект':'Сохранить'}</button>
@@ -1596,6 +1844,11 @@ function renderPane(){
           <label class="btn ghost sm" style="margin-top:8px">📎 Прикрепить скриншот<input type="file" accept="image/*" class="hidden" onchange="App.pAttach(event)"></label>
           <div class="small muted" style="margin-top:6px">Комментарии сохраняются вместе с проектом — нажми «Сохранить».</div>
         </div></div>`;
+      return;
+    }
+    case 'equip': {
+      if(PP.isNew){ el.innerHTML = '<div class="info-box">Сначала сохрани проект — потом можно выдавать на него оборудование.</div>'; return; }
+      el.innerHTML = projectEquipHTML(PP.id);
       return;
     }
     case 'remind': {
@@ -2154,7 +2407,7 @@ App.planMove = id => {
 //  АКТИВНОСТЬ (руководитель и партнёр)
 // ═════════════════════════════════════════════════════════════
 const AC = { tab:'feed', day: iso(), who:'all' };
-const ACT_IC = { task:'✚', done:'✓', move:'➜', edit:'✎', project:'◆', acct:'₽', closed:'★', comment:'❝', client:'☎' };
+const ACT_IC = { stock:'▣', task:'✚', done:'✓', move:'➜', edit:'✎', project:'◆', acct:'₽', closed:'★', comment:'❝', client:'☎' };
 VIEWS.activity = {
   shell(){
     return `<div class="tabs">${[['feed','Лента дня'],['timeline','Шкала проектов']].map(([k,l])=>`<button class="tab ${AC.tab===k?'on':''}" onclick="App.acTab('${k}')">${l}</button>`).join('')}</div><div id="acBody"></div>`;
@@ -2239,14 +2492,748 @@ function timelineHTML(el){
 }
 
 // ═════════════════════════════════════════════════════════════
-//  СКЛАД (заготовка)
+//  СКЛАД
 // ═════════════════════════════════════════════════════════════
-VIEWS.warehouse = {
-  body(){
-    $('view').innerHTML = `<div class="card soon-box"><div class="big">📦</div><h3>Склад — скоро</h3>
-      <p class="muted">Раздел готовим на этой неделе. Здесь будет учёт оборудования и инвентаря.</p>
-      <ul><li>Позиции: что есть, сколько, где лежит</li><li>Кто взял и на какой проект, когда вернёт</li><li>Связь с чек-листом оборудования в проекте</li><li>QR-коды на ящиках и кейсах</li></ul></div>`;
+const WH_CATS = {
+  LT:{ label:'Лазертаг', ic:'🎯' }, PC:{ label:'Компьютеры и периферия', ic:'💻' }, BR:{ label:'Трансляция', ic:'🎥' },
+  VR:{ label:'VR', ic:'🥽' }, CL:{ label:'Одежда и форма', ic:'👕' }, CN:{ label:'Расходники', ic:'🧰' }, OT:{ label:'Прочее', ic:'📦' }
+};
+const WH_ST = {
+  in:{ label:'На складе', cls:'ws-in' }, out:{ label:'На проекте', cls:'ws-out' }, transit:{ label:'В пути', cls:'ws-transit' },
+  repair:{ label:'В ремонте', cls:'ws-repair' }, lost:{ label:'Утеряно', cls:'ws-lost' }, off:{ label:'Списано', cls:'ws-off' }
+};
+const WH_MOVE = {
+  issue:{ label:'Выдача на проект', ic:'↗' }, return:{ label:'Возврат на склад', ic:'↙' }, transfer:{ label:'Перемещение', ic:'⇄' },
+  accept:{ label:'Приёмка', ic:'✓' }, repair:{ label:'В ремонт', ic:'🔧' }, lost:{ label:'Утеряно', ic:'?' }, off:{ label:'Списание', ic:'✕' },
+  add:{ label:'Поступление', ic:'+' }
+};
+const WH_DEFAULT_SITES = [{ id:'MSK', name:'Москва' }, { id:'SPB', name:'Санкт-Петербург' }];
+S.wh = { sites:[], items:[], moves:[], costs:{}, loaded:false };
+const WV = { tab:'items', site:'all', cat:'all', st:'all', q:'', group:true, open:{}, sel:{}, opened:null };
+const canStock = () => isAdmin() || isAssistant() || canMoney();
+
+App.onWh = (kind, list) => {
+  if(kind==='costs'){ S.wh.costs = {}; list.forEach(c => S.wh.costs[c.id] = c); }
+  else S.wh[kind] = list;
+  if(kind==='items') S.wh.loaded = true;
+  refresh();
+  if(S.view==='project' && PP.tab==='equip') renderPane();
+};
+
+// ── помощники ────────────────────────────────────────────────
+const whSites = () => S.wh.sites.length ? S.wh.sites.slice().sort((a,b)=>String(a.order||a.id).localeCompare(String(b.order||b.id))) : WH_DEFAULT_SITES;
+const siteName = id => { const s = whSites().find(x=>x.id===id); return s ? s.name : (id||'—'); };
+const whItem = id => S.wh.items.find(i => i.id===id);
+const isBulk = it => it && it.kind==='bulk';
+const openMoves = () => S.wh.moves.filter(m => m.status==='transit');
+const sumObj = o => Object.values(o||{}).reduce((a,b)=>a+Number(b||0),0);
+function bulkTransit(id){ return openMoves().reduce((a,m)=>a+(m.items||[]).filter(x=>x.id===id).reduce((s,x)=>s+Number(x.qty||0),0),0); }
+function whWhere(it){
+  if(isBulk(it)){
+    const parts = whSites().map(s => (it.stock||{})[s.id] ? `${s.name.split(' ')[0]} ${(it.stock||{})[s.id]}` : '').filter(Boolean);
+    const out = sumObj(it.out), tr = bulkTransit(it.id);
+    if(out) parts.push(`на проектах ${out}`); if(tr) parts.push(`в пути ${tr}`);
+    return parts.join(' · ') || 'нет в наличии';
   }
+  if(it.status==='out'){ const p = projBy(it.projectId); return p ? '📁 '+p.name : 'на проекте'; }
+  if(it.status==='transit') return `${siteName(it.site)} → ${siteName(it.toSite)}`;
+  return siteName(it.site);
+}
+function whPill(it){
+  if(isBulk(it)){ const n = sumObj(it.stock); return `<span class="ws ${n?'ws-in':'ws-lost'}">${n} ${esc(it.unit||'шт')}</span>`; }
+  const s = WH_ST[it.status||'in'] || WH_ST.in;
+  return `<span class="ws ${s.cls}">${s.label}</span>`;
+}
+function nextInv(cat, site, kind, taken){
+  const prefix = kind==='bulk' ? `${cat}-P` : `${cat}-${site}-`;
+  let max = 0;
+  S.wh.items.concat(taken||[]).forEach(i => { const id = i.id||i; if(String(id).startsWith(prefix)){ const n = parseInt(String(id).slice(prefix.length),10); if(n>max) max = n; } });
+  return n => prefix + String(max+n).padStart(3,'0');
+}
+function guessCat(text){
+  const t = String(text||'').toLowerCase();
+  if(/\bvr\b|вр\b|виар|окулус|oculus|quest|pico|vive|шлем вр/.test(t)) return 'VR';
+  if(/винтов|автомат|бластер|шлем|нагрудн|повязк|тагер|лазертаг|alphatag|laserwar|зарядк.*(винт|бласт)|аккумулятор.*(винт|бласт)/.test(t)) return 'LT';
+  if(/vr|окулус|oculus|quest|шлем вр|vive|pico/.test(t)) return 'VR';
+  if(/ноут|компьют|пк\b|монитор|мыш|клавиат|наушник|геймпад|роутер|коммутатор|джойст|системн/.test(t)) return 'PC';
+  if(/камер|трансл|стрим|микрофон|штатив|свет|софтбокс|захват|obs|пульт|радиосист|рация|saramonic/.test(t)) return 'BR';
+  if(/футбол|форм|одежд|худи|кепк|жилет|майк|костюм|шорт/.test(t)) return 'CL';
+  if(/скотч|лента|стяжк|батарейк|салфет|дезодор|маркер|бумаг|пакет|перчат|клей|изолент/.test(t)) return 'CN';
+  return 'OT';
+}
+function guessSite(text){
+  const t = String(text||'').toLowerCase();
+  const hit = whSites().find(s => t.includes(s.id.toLowerCase()) || t.includes(s.name.toLowerCase().slice(0,4)));
+  if(hit) return hit.id;
+  if(/спб|питер|санкт/.test(t)) return 'SPB';
+  return whSites()[0].id;
+}
+const qrUrl = inv => location.origin + location.pathname + '#warehouse/' + inv;
+function qrImg(inv, cell){
+  try{ const q = qrcode(0, 'M'); q.addData(qrUrl(inv)); q.make(); return q.createDataURL(cell||4, 2); }catch(e){ return ''; }
+}
+
+// ── выбор (корзина) ─────────────────────────────────────────
+const selCount = () => Object.keys(WV.sel).length;
+App.whToggle = (id, e) => { if(e) e.stopPropagation(); if(WV.sel[id]) delete WV.sel[id]; else WV.sel[id] = { qty:1 }; whRefreshSel(); };
+App.whToggleGroup = (gi, e) => {
+  if(e) e.stopPropagation();
+  const key = WV.gkeys[gi];
+  const ids = whFiltered().filter(i => groupKey(i)===key).map(i=>i.id);
+  const all = ids.every(id => WV.sel[id]);
+  ids.forEach(id => { if(all) delete WV.sel[id]; else WV.sel[id] = WV.sel[id] || { qty:1 }; });
+  whRefreshSel();
+};
+App.whClearSel = () => { WV.sel = {}; whRefreshSel(); };
+function whRefreshSel(){ if(S.view==='warehouse') VIEWS.warehouse.body(); }
+function selBar(){
+  const n = selCount(); if(!n) return '';
+  return `<div class="wh-selbar"><b>Выбрано: ${n}</b>
+    <button class="btn sm" onclick="App.whAct('issue')">↗ На проект</button>
+    <button class="btn sm ghost" onclick="App.whAct('transfer')">⇄ Переместить</button>
+    <button class="btn sm ghost" onclick="App.whAct('return')">↙ Вернуть на склад</button>
+    <button class="btn sm ghost" onclick="App.whAct('repair')">🔧 В ремонт</button>
+    <button class="btn sm ghost" onclick="App.whPrint()">🏷 Бирки</button>
+    ${canStock()?`<button class="btn sm ghost" onclick="App.whAct('lost')">Утеряно</button><button class="btn sm ghost" onclick="App.whAct('off')">Списать</button>`:''}
+    <span class="spacer"></span><button class="link-btn" onclick="App.whClearSel()">сбросить</button></div>`;
+}
+
+// ── фильтры и список ─────────────────────────────────────────
+function whFiltered(){
+  let list = S.wh.items.slice();
+  if(WV.st!=='off-all') list = list.filter(i => WV.st==='off' || isBulk(i) || i.status!=='off');
+  if(WV.site!=='all') list = list.filter(i => isBulk(i) ? (i.stock||{})[WV.site] : (i.site===WV.site || i.toSite===WV.site));
+  if(WV.cat!=='all') list = list.filter(i => i.cat===WV.cat);
+  if(WV.st!=='all' && WV.st!=='off-all') list = list.filter(i => isBulk(i) ? WV.st==='in' : (i.status||'in')===WV.st);
+  if(WV.q){ const q = WV.q.toLowerCase(); list = list.filter(i => [i.id,i.name,i.model,i.serial,i.note].join(' ').toLowerCase().includes(q)); }
+  const order = Object.keys(WH_CATS);
+  return list.sort((a,b)=> (order.indexOf(a.cat)-order.indexOf(b.cat)) || String(a.name+'|'+(a.model||'')+'|'+a.id).localeCompare(String(b.name+'|'+(b.model||'')+'|'+b.id),'ru'));
+}
+const groupKey = i => isBulk(i) ? 'bulk:'+i.id : [i.cat,i.name,i.model||''].join('|');
+
+VIEWS.warehouse = {
+  shell(){
+    const tr = openMoves().length;
+    const outN = S.wh.items.filter(i=>i.status==='out').length + S.wh.items.filter(isBulk).reduce((a,i)=>a+sumObj(i.out),0);
+    return `<div class="wh-top">
+        <button class="btn wh-scan" onclick="App.whScan()">📷 Сканировать</button>
+        ${canStock()?`<button class="btn ghost" onclick="App.whAdd()">+ Добавить</button><button class="btn ghost" onclick="App.whImport()">⇪ Импорт из Excel</button>`:''}
+        <span class="spacer"></span>
+        <div class="search">🔍<input id="whSearch" placeholder="Номер, название, модель" value="${esc(WV.q)}" oninput="App.whSearch(this.value)"></div>
+      </div>
+      <div class="tabs">${[['items','Оборудование',''],['transit','В пути',tr],['projects','На проектах',outN],['log','Журнал','']]
+        .map(([k,l,n])=>`<button class="tab ${WV.tab===k?'on':''}" onclick="App.whTab('${k}')">${l}${n?` <span class="tab-n ${k==='transit'?'hot':''}">${n}</span>`:''}</button>`).join('')}</div>
+      <div id="whBody"></div><div id="whSel"></div>`;
+  },
+  body(){
+    const el = $('whBody'); if(!el) return;
+    if(!S.wh.loaded){ el.innerHTML = '<div class="empty">Загрузка склада…</div>'; return; }
+    if(WV.tab==='items'){ whItemsTab(el); const on = el.querySelector('.cat-tile.on'); if(on && innerWidth<860) on.scrollIntoView({ block:'nearest', inline:'center' }); }
+    if(WV.tab==='transit') whTransitTab(el);
+    if(WV.tab==='projects') whProjectsTab(el);
+    if(WV.tab==='log') whLogTab(el);
+    $('whSel').innerHTML = selBar();
+    if(S.param && WV.opened!==S.param && whItem(S.param)){ WV.opened = S.param; App.whItem(S.param); }
+  }
+};
+App.whTab = t => { WV.tab = t; if(S.view!=='warehouse') App.go('warehouse'); else mount(); };
+App.whSearch = q => { WV.q = q; VIEWS.warehouse.body(); };
+App.whFilter = (k, v) => { WV[k] = WV[k]===v && k!=='site' && k!=='cat' ? 'all' : v; if(k==='cat') WV.open = {}; VIEWS.warehouse.body(); };
+App.whGroup = v => { WV.group = v; VIEWS.warehouse.body(); };
+App.whOpenGroup = gi => { const k = WV.gkeys[gi]; WV.open[k] = !WV.open[k]; VIEWS.warehouse.body(); };
+
+function whItemsTab(el){
+  const all = S.wh.items;
+  if(!all.length){
+    el.innerHTML = `<div class="card soon-box"><div class="big">📦</div><h3>Склад пока пуст</h3>
+      <p class="muted">Добавь оборудование вручную или загрузи свой список из Excel — номера и QR-бирки создадутся сами.</p>
+      ${canStock()?`<div class="row" style="justify-content:center;margin-top:16px"><button class="btn" onclick="App.whAdd()">+ Добавить оборудование</button><button class="btn ghost" onclick="App.whImport()">⇪ Импорт из Excel</button></div>`:''}</div>`;
+    return;
+  }
+  const sites = whSites();
+  const live = all.filter(i => isBulk(i) || i.status!=='off');
+  // плитки направлений
+  const catStat = c => {
+    const list = live.filter(i => c==='all' || i.cat===c);
+    const per = {}; sites.forEach(s => per[s.id] = 0);
+    let total = 0;
+    list.forEach(i => {
+      if(isBulk(i)){ sites.forEach(s => per[s.id] += Number((i.stock||{})[s.id]||0)); total += sumObj(i.stock)+sumObj(i.out)+bulkTransit(i.id); }
+      else { total++; if((i.status||'in')==='in' && per[i.site]!==undefined) per[i.site]++; }
+    });
+    return { total, per, models: new Set(list.map(groupKey)).size };
+  };
+  const present = Object.keys(WH_CATS).filter(c => ['LT','VR','PC'].includes(c) || live.some(i=>i.cat===c));
+  const tile = (c, label, ic) => { const st = catStat(c);
+    return `<button class="cat-tile ${WV.cat===c?'on':''} ${st.total?'':'zero'}" onclick="App.whFilter('cat','${c}')">
+      <span class="ct-ic">${ic}</span><span class="ct-name">${esc(label)}</span><span class="ct-total">${st.total}</span>
+      <span class="ct-sites">${sites.map(s=>`<i><em>${esc(s.id)}</em>${st.per[s.id]}</i>`).join('')}</span></button>`; };
+  // таблица
+  const list = whFiltered();
+  const map = new Map(), keys = [];
+  list.forEach(i => { const k = groupKey(i); if(!map.has(k)){ map.set(k, []); keys.push(k); } map.get(k).push(i); });
+  WV.gkeys = keys;
+  const rowStat = items => {
+    const it = items[0], r = { per:{}, out:0, tr:0, rep:0, total:0 };
+    sites.forEach(s => r.per[s.id] = 0);
+    if(isBulk(it)){ sites.forEach(s => r.per[s.id] = Number((it.stock||{})[s.id]||0)); r.out = sumObj(it.out); r.tr = bulkTransit(it.id); }
+    else items.forEach(i => { const st = i.status||'in';
+      if(st==='in' && r.per[i.site]!==undefined) r.per[i.site]++; else if(st==='out') r.out++; else if(st==='transit') r.tr++; else if(st==='repair' || st==='lost') r.rep++; });
+    r.total = Object.values(r.per).reduce((a,b)=>a+b,0) + r.out + r.tr + r.rep;
+    return r;
+  };
+  const num = (n, cls) => `<td class="n ${cls||''} ${n?'':'zero'}">${n||'—'}</td>`;
+  const totals = { per:{}, out:0, tr:0, rep:0, total:0 }; sites.forEach(s => totals.per[s.id] = 0);
+  let lastCat = null, body = '';
+  keys.forEach((k, gi) => {
+    const items = map.get(k), it = items[0], r = rowStat(items), cat = WH_CATS[it.cat] || WH_CATS.OT;
+    sites.forEach(s => totals.per[s.id] += r.per[s.id]); totals.out += r.out; totals.tr += r.tr; totals.rep += r.rep; totals.total += r.total;
+    if(WV.cat==='all' && it.cat!==lastCat){ lastCat = it.cat; body += `<tr class="cat-row"><td colspan="${sites.length+6}">${cat.ic} ${esc(cat.label)}</td></tr>`; }
+    const ids = items.map(i=>i.id), allSel = ids.every(id=>WV.sel[id]), someSel = ids.some(id=>WV.sel[id]);
+    const open = WV.open[k] && !isBulk(it);
+    body += `<tr class="m-row ${open?'open':''} ${someSel?'sel':''}" onclick="${isBulk(it)?`App.whItem('${esc(it.id)}')`:`App.whOpenGroup(${gi})`}">
+      <td class="c-chk"><button class="chk ${allSel?'on':''} ${someSel&&!allSel?'part':''}" onclick="App.whToggleGroup(${gi},event)" aria-label="Выбрать">${allSel?'✓':someSel&&!allSel?'–':''}</button></td>
+      <td class="c-name"><b>${esc(it.name)}</b>${it.model?`<span>${esc(it.model)}</span>`:''}${isBulk(it)?`<span class="unit">${esc(it.unit||'шт')} · партия</span>`:''}</td>
+      ${sites.map(s => num(r.per[s.id], 'site')).join('')}
+      ${num(r.out,'out')}${num(r.tr,'tr')}${num(r.rep,'rep')}
+      <td class="n total">${r.total}</td>
+      <td class="c-chev">${isBulk(it)?'›':open?'▴':'▾'}</td></tr>`;
+    if(open) body += `<tr class="u-row"><td colspan="${sites.length+6}"><div class="wh-units">${items.map(i=>unitRow(i,true)).join('')}</div></td></tr>`;
+  });
+  const stChips = [['out','На проектах'],['transit','В пути'],['repair','В ремонте'],['lost','Утеряно']].map(([k,l]) => {
+    const n = all.filter(i=>!isBulk(i) && i.status===k && (WV.cat==='all'||i.cat===WV.cat)).length;
+    return n ? `<button class="chip ${WV.st===k?'on':''}" onclick="App.whFilter('st','${k}')">${l} · ${n}</button>` : ''; }).join('');
+  el.innerHTML = `<div class="cat-tiles">${tile('all','Всё оборудование','✦')}${present.map(c=>tile(c, WH_CATS[c].label, WH_CATS[c].ic)).join('')}</div>
+    ${stChips || WV.st!=='all' ? `<div class="toolbar" style="margin-top:14px"><span class="small muted">Показать только:</span><div class="chips">${stChips}${WV.st!=='all'?`<button class="chip" onclick="App.whFilter('st','all')">✕ все статусы</button>`:''}</div></div>` : ''}
+    <div class="mx-wrap"><table class="mx">
+      <thead><tr><th class="c-chk"></th><th class="c-name">${WV.cat==='all'?'Наименование':esc(WH_CATS[WV.cat].ic+' '+WH_CATS[WV.cat].label)}</th>
+        ${sites.map(s=>`<th class="n site"><em>${esc(s.id)}</em><span class="sn">${esc(s.name)}</span></th>`).join('')}
+        <th class="n out">На проектах</th><th class="n tr">В пути</th><th class="n rep">Ремонт / утеряно</th><th class="n total">Всего</th><th class="c-chev"></th></tr></thead>
+      <tbody>${body || `<tr><td colspan="${sites.length+6}" class="empty">Ничего не найдено</td></tr>`}</tbody>
+      ${keys.length>1?`<tfoot><tr><td></td><td class="c-name"><b>Итого</b><span>${keys.length} ${plural(keys.length,'позиция','позиции','позиций')}</span></td>${sites.map(s=>`<td class="n">${totals.per[s.id]}</td>`).join('')}<td class="n">${totals.out}</td><td class="n">${totals.tr}</td><td class="n">${totals.rep}</td><td class="n total">${totals.total}</td><td></td></tr></tfoot>`:''}
+    </table></div>
+    <p class="small muted" style="margin-top:8px">Цифры по складам — сколько лежит на месте сейчас. Нажми на строку, чтобы увидеть номера и выбрать конкретные единицы.</p>`;
+}
+function groupRow(k, items, gi){
+  const it = items[0], cat = WH_CATS[it.cat] || WH_CATS.OT;
+  if(isBulk(it)) return bulkRow(it);
+  const by = st => items.filter(i=>(i.status||'in')===st).length;
+  const sites = whSites().map(s => { const n = items.filter(i=>i.site===s.id && (i.status||'in')==='in').length; return n ? `${s.id} ${n}` : ''; }).filter(Boolean).join(' · ');
+  const allSel = items.every(i=>WV.sel[i.id]), someSel = items.some(i=>WV.sel[i.id]);
+  const open = WV.open[k];
+  return `<div class="wh-group ${open?'open':''}">
+    <div class="wh-row group" onclick="App.whOpenGroup(${gi})">
+      <button class="chk ${allSel?'on':''} ${someSel&&!allSel?'part':''}" onclick="App.whToggleGroup(${gi},event)" aria-label="Выбрать все">${allSel?'✓':someSel?'–':''}</button>
+      <span class="wh-ic">${cat.ic}</span>
+      <div class="wh-main"><div class="wh-name">${esc(it.name)}${it.model?` <span class="muted">· ${esc(it.model)}</span>`:''}</div>
+        <div class="wh-sub">${esc(cat.label)} · ${items.length} ед.${sites?' · на складе: '+esc(sites):''}</div></div>
+      <div class="wh-counts">${['in','out','transit','repair','lost'].map(st=>{ const n = by(st); return n?`<span class="ws ${WH_ST[st].cls}">${WH_ST[st].label} ${n}</span>`:''; }).join('')}</div>
+      <span class="wh-chev">${open?'▴':'▾'}</span>
+    </div>
+    ${open?`<div class="wh-units">${items.map(unitRow).join('')}</div>`:''}
+  </div>`;
+}
+function unitRow(it, compact){
+  if(isBulk(it)) return bulkRow(it);
+  const cat = WH_CATS[it.cat] || WH_CATS.OT;
+  return `<div class="wh-row" onclick="App.whItem('${esc(it.id)}')">
+    <button class="chk ${WV.sel[it.id]?'on':''}" onclick="App.whToggle('${esc(it.id)}',event)" aria-label="Выбрать">${WV.sel[it.id]?'✓':''}</button>
+    <span class="wh-inv">${esc(it.id)}</span>
+    ${compact ? `<div class="wh-main"><div class="wh-name">${esc(whWhere(it))}</div><div class="wh-sub">${it.serial?'S/N '+esc(it.serial):''}${it.holder&&it.status==='out'?(it.serial?' · ':'')+'выдал(а) '+esc(uname(it.holder)):''}${it.note?((it.serial||it.holder)?' · ':'')+esc(it.note):''}</div></div>`
+      : `<div class="wh-main"><div class="wh-name">${esc(it.name)}${it.model?` <span class="muted">· ${esc(it.model)}</span>`:''}</div>
+      <div class="wh-sub">${cat.ic} ${esc(whWhere(it))}${it.holder&&it.status==='out'?' · '+esc(uname(it.holder)):''}</div></div>`}
+    ${whPill(it)}
+  </div>`;
+}
+function bulkRow(it){
+  const cat = WH_CATS[it.cat] || WH_CATS.OT;
+  return `<div class="wh-row" onclick="App.whItem('${esc(it.id)}')">
+    <button class="chk ${WV.sel[it.id]?'on':''}" onclick="App.whToggle('${esc(it.id)}',event)" aria-label="Выбрать">${WV.sel[it.id]?'✓':''}</button>
+    <span class="wh-ic">${cat.ic}</span>
+    <div class="wh-main"><div class="wh-name">${esc(it.name)}${it.model?` <span class="muted">· ${esc(it.model)}</span>`:''} <span class="tag">партия</span></div>
+      <div class="wh-sub">${esc(cat.label)} · ${esc(whWhere(it))}</div></div>
+    ${whPill(it)}
+  </div>`;
+}
+
+function whTransitTab(el){
+  const list = openMoves().sort((a,b)=>b.at-a.at);
+  el.innerHTML = list.length ? list.map(m => `<div class="card wh-move">
+      <div class="card-h"><h3>${esc(siteName(m.from))} → ${esc(siteName(m.to))}</h3><span class="ws ws-transit">в пути</span></div>
+      <div class="card-b"><p class="small muted">Отправил(а) ${esc(uname(m.by))} · ${esc(dlong(m.day))}, ${hhmm(m.at)}${m.note?' · '+esc(m.note):''}</p>
+        <div class="wh-move-items">${(m.items||[]).map(x=>`<span class="tag">${esc(x.kind==='bulk'?x.name+' × '+x.qty:x.inv)}</span>`).join('')}</div>
+        <div class="row" style="margin-top:12px"><button class="btn" onclick="App.whAccept('${esc(m.id)}')">Принять на склад «${esc(siteName(m.to))}»</button></div></div>
+    </div>`).join('') : '<div class="empty" style="padding:40px">Ничего не едет. Когда кто-то отправит оборудование на другой склад, здесь появится приёмка.</div>';
+}
+function whProjectsTab(el){
+  const byP = {};
+  S.wh.items.forEach(i => {
+    if(isBulk(i)) Object.entries(i.out||{}).forEach(([pid,q]) => { if(q) (byP[pid] = byP[pid]||[]).push({ it:i, qty:q }); });
+    else if(i.status==='out') (byP[i.projectId||'?'] = byP[i.projectId||'?']||[]).push({ it:i, qty:1 });
+  });
+  const pids = Object.keys(byP).sort((a,b)=>String((projBy(a)||{}).date||'').localeCompare(String((projBy(b)||{}).date||'')));
+  el.innerHTML = pids.length ? `<div class="grid">${pids.map(pid => {
+    const p = projBy(pid), rows = byP[pid];
+    const d = p ? daysUntil(p.dateEnd||p.date) : null;
+    return `<div class="card"><div class="card-h"><h3>${esc(p?p.name:'Проект удалён')}</h3>
+      ${d!==null&&d<0?'<span class="tag red">проект прошёл — верните</span>':''}${p?`<span class="small muted">${esc(dlong(p.date))}</span>`:''}</div>
+      <div class="card-b">${equipSummary(rows)}
+        <div class="row" style="margin-top:12px">${p?`<button class="btn sm ghost" onclick="App.go('project','${esc(pid)}')">Открыть проект</button>`:''}
+        <button class="btn sm" onclick="App.whReturnProject('${esc(pid)}')">↙ Вернуть всё на склад</button></div></div></div>`;
+  }).join('')}</div>` : '<div class="empty" style="padding:40px">Сейчас ничего не выдано на проекты.</div>';
+}
+function equipSummary(rows){
+  const g = new Map();
+  rows.forEach(({it,qty}) => { const k = isBulk(it) ? 'b:'+it.id : it.name+'|'+(it.model||''); const cur = g.get(k) || { name:it.name, model:it.model, n:0, ids:[], unit:it.unit, bulk:isBulk(it) }; cur.n += Number(qty); if(!isBulk(it)) cur.ids.push(it.id); g.set(k, cur); });
+  return `<div class="eq-list">${[...g.values()].map(x=>`<div class="eq-row"><b>${esc(x.name)}</b>${x.model?` <span class="muted">${esc(x.model)}</span>`:''}<span class="spacer"></span><span class="eq-n">${x.n} ${esc(x.bulk?(x.unit||'шт'):'шт')}</span>
+    ${x.ids.length?`<div class="eq-ids">${x.ids.map(id=>`<button class="tag" onclick="App.whItem('${esc(id)}')">${esc(id)}</button>`).join('')}</div>`:''}</div>`).join('')}</div>`;
+}
+function whLogTab(el){
+  const list = S.wh.moves.slice().sort((a,b)=>b.at-a.at).slice(0,150);
+  el.innerHTML = list.length ? `<div class="card"><div class="card-b"><div class="feed">${list.map(m => {
+    const t = WH_MOVE[m.type] || { label:m.type, ic:'•' }, p = m.projectId && projBy(m.projectId);
+    const where = m.type==='transfer' ? `${siteName(m.from)} → ${siteName(m.to)}` : m.type==='issue' ? (p?'на «'+p.name+'»':'на проект') : m.type==='return' ? 'на склад «'+siteName(m.to)+'»' : m.to ? siteName(m.to) : '';
+    const names = (m.items||[]).slice(0,6).map(x=>x.kind==='bulk'?x.name+' ×'+x.qty:x.inv).join(', ') + ((m.items||[]).length>6?` и ещё ${(m.items||[]).length-6}`:'');
+    return `<div class="feed-i t-${m.type==='accept'||m.type==='return'?'done':'move'}"><span class="feed-time">${esc(dshort(m.day))}<br>${hhmm(m.at)}</span><span class="feed-dot">${t.ic}</span>
+      <div class="feed-main"><b>${esc(t.label)}</b> ${esc(where)} · ${av(m.by,'sm')} ${esc(uname(m.by))}${m.status==='transit'?' <span class="ws ws-transit">в пути</span>':''}
+        <div class="small muted">${esc(names)}${m.note?' · '+esc(m.note):''}${m.missing&&m.missing.length?` · <span style="color:var(--red)">не пришло: ${esc(m.missing.join(', '))}</span>`:''}</div></div></div>`;
+  }).join('')}</div></div></div>` : '<div class="empty" style="padding:40px">Журнал пуст — здесь появится каждое движение оборудования.</div>';
+}
+
+// ── карточка позиции ─────────────────────────────────────────
+let whEdit = null;
+App.whItem = id => {
+  const it = whItem(id); if(!it){ toast('Позиция '+id+' не найдена','⚠️'); return; }
+  whEdit = it;
+  const cat = WH_CATS[it.cat] || WH_CATS.OT, cost = S.wh.costs[it.id];
+  const hist = S.wh.moves.filter(m => (m.items||[]).some(x=>x.id===it.id)).sort((a,b)=>b.at-a.at).slice(0,20);
+  const ed = canStock();
+  $('whItemBody').innerHTML = `<div class="wh-card-top">
+      <div class="wh-qr">${qrImg(it.id,5)?`<img src="${qrImg(it.id,5)}" alt="QR ${esc(it.id)}">`:''}<div class="wh-inv big">${esc(it.id)}</div></div>
+      <div style="flex:1;min-width:0">
+        <div class="row">${whPill(it)}<span class="tag">${cat.ic} ${esc(cat.label)}</span>${isBulk(it)?'<span class="tag">партия</span>':''}</div>
+        <div class="wh-where">${esc(whWhere(it))}</div>
+        ${it.holder && it.status==='out' ? `<div class="small muted">Выдал(а): ${esc(uname(it.holder))}</div>`:''}
+        <div class="row" style="margin-top:12px">
+          ${isBulk(it) || (it.status||'in')==='in' ? `<button class="btn sm" onclick="App.whOne('issue')">↗ На проект</button><button class="btn sm ghost" onclick="App.whOne('transfer')">⇄ Переместить</button>`:''}
+          ${isBulk(it) || ['out','repair','lost'].includes(it.status) ? `<button class="btn sm ${isBulk(it)?'ghost':''}" onclick="App.whOne('return')">↙ Вернуть на склад</button>`:''}
+          ${it.status==='transit' ? `<button class="btn sm" onclick="App.whTab('transit');App.closeModal('whItemOverlay')">К приёмке</button>`:''}
+          ${!isBulk(it) && (it.status||'in')==='in' ? `<button class="btn sm ghost" onclick="App.whOne('repair')">🔧 В ремонт</button>`:''}
+          <button class="btn sm ghost" onclick="App.whPrint(['${esc(it.id)}'])">🏷 Бирка</button>
+        </div>
+      </div></div>
+    <div class="g2" style="margin-top:16px">
+      <div class="field"><label class="lbl">Название</label><input class="inp" id="wiName" value="${esc(it.name||'')}" ${ed?'':'disabled'}></div>
+      <div class="field"><label class="lbl">Модель</label><input class="inp" id="wiModel" value="${esc(it.model||'')}" ${ed?'':'disabled'}></div>
+    </div>
+    <div class="g2">
+      <div class="field"><label class="lbl">Категория</label><select class="inp" id="wiCat" ${ed?'':'disabled'}>${Object.entries(WH_CATS).map(([k,c])=>`<option value="${k}" ${it.cat===k?'selected':''}>${c.ic} ${c.label}</option>`).join('')}</select></div>
+      ${isBulk(it) ? `<div class="field"><label class="lbl">Единица</label><input class="inp" id="wiUnit" value="${esc(it.unit||'шт')}" ${ed?'':'disabled'}></div>`
+        : `<div class="field"><label class="lbl">Серийный номер</label><input class="inp" id="wiSerial" value="${esc(it.serial||'')}" ${ed?'':'disabled'}></div>`}
+    </div>
+    ${isBulk(it) && ed ? `<div class="field"><label class="lbl">Остаток по складам</label><div class="g3">${whSites().map(s=>`<label class="small">${esc(s.name)}<input class="inp" type="number" min="0" data-stock="${esc(s.id)}" value="${(it.stock||{})[s.id]||0}"></label>`).join('')}</div>
+      <div class="small muted" style="margin-top:4px">Правь остаток после пересчёта. Для выдачи и перемещения используй кнопки выше.</div></div>`:''}
+    <div class="field"><label class="lbl">Заметка</label><textarea class="inp" id="wiNote" rows="2" ${ed?'':'disabled'} placeholder="Комплектность, дефекты, где именно лежит">${esc(it.note||'')}</textarea></div>
+    ${canMoney()?`<div class="field"><label class="lbl">🔒 Закупочная стоимость${isBulk(it)?' за единицу':''}, ₽</label><input class="inp" id="wiCost" type="number" value="${esc(cost?cost.cost:'')}" style="max-width:220px"></div>`:''}
+    <div class="sec-t" style="margin-top:8px">История</div>
+    ${hist.length ? hist.map(m => { const t = WH_MOVE[m.type]||{label:m.type}; const p = m.projectId && projBy(m.projectId); const x = (m.items||[]).find(y=>y.id===it.id);
+      return `<div class="li" style="cursor:default"><div class="li-main"><div class="li-t">${esc(t.label)}${m.type==='transfer'?' '+esc(siteName(m.from))+' → '+esc(siteName(m.to)):''}${p?' · '+esc(p.name):''}${isBulk(it)&&x?' · '+x.qty+' '+esc(it.unit||'шт'):''}</div>
+        <div class="li-s">${esc(uname(m.by))} · ${esc(dlong(m.day))}, ${hhmm(m.at)}${m.status==='transit'?' · в пути':''}</div></div></div>`; }).join('') : '<div class="empty">Движений пока не было</div>'}`;
+  $('whItemTitle').textContent = it.name || it.id;
+  $('wiSave').classList.toggle('hidden', !(ed || canMoney()));
+  $('wiDel').classList.toggle('hidden', !ed);
+  openModal('whItemOverlay');
+};
+App.whOne = act => { const id = whEdit.id; App.closeModal('whItemOverlay'); WV.sel = { [id]:{ qty:1 } }; App.whAct(act); };
+App.whSaveItem = () => {
+  const it = whEdit; if(!it) return;
+  const jobs = [];
+  if(canStock()){
+    const patch = { name:$('wiName').value.trim()||it.name, model:$('wiModel').value.trim(), cat:$('wiCat').value, note:$('wiNote').value.trim() };
+    if(isBulk(it)){ patch.unit = $('wiUnit').value.trim()||'шт'; const st = {}; document.querySelectorAll('[data-stock]').forEach(i => { const n = Number(i.value)||0; if(n) st[i.dataset.stock] = n; }); patch.stock = st; }
+    else patch.serial = $('wiSerial').value.trim();
+    jobs.push(DB.patchWh(it.id, patch));
+  }
+  if(canMoney() && $('wiCost')){ const c = $('wiCost').value; if(String(c)!==String((S.wh.costs[it.id]||{}).cost||'')) jobs.push(DB.saveWhCost(it.id, { cost:c })); }
+  App.closeModal('whItemOverlay');
+  Promise.all(jobs).then(()=>toast('Сохранено','✅')).catch(()=>toast('Не получилось сохранить','❌'));
+};
+App.whDelete = () => {
+  const it = whEdit; if(!it || !confirm(`Удалить ${it.id} «${it.name}» из учёта насовсем? Если вещь сломалась или потерялась — лучше «Списать».`)) return;
+  App.closeModal('whItemOverlay');
+  DB.delWh(it.id).then(()=>toast('Удалено','🗑')).catch(()=>toast('Не получилось удалить','❌'));
+};
+
+// ── операции ─────────────────────────────────────────────────
+let WA = null;   // текущая операция
+const ACT_TITLE = { issue:'Выдать на проект', transfer:'Переместить на другой склад', return:'Вернуть на склад', repair:'Отправить в ремонт', lost:'Отметить утерянным', off:'Списать' };
+App.whAct = (type, preset={}) => {
+  const ids = Object.keys(WV.sel);
+  if(!ids.length){ toast('Сначала выбери оборудование','⚠️'); return; }
+  const lines = [], skipped = [];
+  ids.forEach(id => {
+    const it = whItem(id); if(!it) return;
+    if(isBulk(it)){
+      if(['repair','lost'].includes(type)){ skipped.push(it.name); return; }
+      if(type==='return'){
+        const outs = Object.entries(it.out||{}).filter(([,q])=>q);
+        if(!outs.length){ skipped.push(it.name); return; }
+        outs.forEach(([pid,q]) => { if(!preset.projectId || preset.projectId===pid) lines.push({ it, qty:q, max:q, pid }); });
+      } else {
+        const site = Object.entries(it.stock||{}).filter(([,q])=>q).sort((a,b)=>b[1]-a[1])[0];
+        if(!site){ skipped.push(it.name); return; }
+        lines.push({ it, qty: Math.min(WV.sel[id].qty||1, site[1]), max: site[1], from: site[0] });
+      }
+      return;
+    }
+    const st = it.status||'in';
+    const ok = { issue: st==='in', transfer: st==='in', repair: st==='in', return: ['out','repair','lost'].includes(st), lost: ['in','out','repair'].includes(st), off: st!=='off' }[type];
+    if(ok) lines.push({ it, qty:1 }); else skipped.push(it.id);
+  });
+  if(!lines.length){ toast('Для этой операции ничего не подходит: '+skipped.slice(0,4).join(', '),'⚠️'); return; }
+  WA = { type, lines, skipped, preset };
+  const sites = whSites();
+  const unitSites = [...new Set(lines.map(l => isBulk(l.it) ? l.from : l.it.site).filter(Boolean))];
+  const projs = upcomingProjects().filter(p => (p.dateEnd||p.date||'9999') >= shiftDay(iso(), -3));
+  $('whActTitle').textContent = ACT_TITLE[type];
+  $('whActBody').innerHTML = `
+    ${type==='issue'?`<div class="field"><label class="lbl">Проект</label><select class="inp" id="waProject">${projs.map(p=>`<option value="${esc(p.id)}" ${preset.projectId===p.id?'selected':''}>${esc(p.name)}${p.date?' · '+esc(dshort(p.date)):''}</option>`).join('')}</select></div>`:''}
+    ${type==='transfer'?`<div class="field"><label class="lbl">Куда</label><select class="inp" id="waTo">${sites.filter(s=>!(unitSites.length===1 && unitSites[0]===s.id)).map(s=>`<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('')}</select>
+      <div class="small muted" style="margin-top:6px">Оборудование получит статус «В пути», пока склад-получатель не подтвердит приёмку.</div></div>`:''}
+    ${type==='return'?`<div class="field"><label class="lbl">На какой склад</label><select class="inp" id="waTo">${sites.map(s=>`<option value="${esc(s.id)}" ${unitSites[0]===s.id?'selected':''}>${esc(s.name)}</option>`).join('')}</select></div>`:''}
+    <div class="field"><label class="lbl">Позиции · ${lines.length}</label><div class="wa-lines">${lines.map((l,i)=>`<div class="item-row">
+      <span class="wh-inv">${esc(isBulk(l.it)?(WH_CATS[l.it.cat]||WH_CATS.OT).ic:l.it.id)}</span><span class="t">${esc(l.it.name)}${isBulk(l.it)?` <span class="muted small">${l.pid?'с «'+esc((projBy(l.pid)||{}).name||'проекта')+'»':'со склада '+esc(siteName(l.from))} · есть ${l.max}</span>`:` <span class="muted small">${esc(whWhere(l.it))}</span>`}</span>
+      ${isBulk(l.it)?`<input class="inp" type="number" min="1" max="${l.max}" value="${l.qty}" data-line="${i}" style="width:84px;padding:6px 8px">`:''}
+    </div>`).join('')}</div>
+    ${skipped.length?`<div class="small muted" style="margin-top:6px">Пропущено (не подходит по статусу): ${esc(skipped.slice(0,8).join(', '))}${skipped.length>8?'…':''}</div>`:''}</div>
+    <div class="field"><label class="lbl">Комментарий</label><input class="inp" id="waNote" placeholder="${type==='repair'?'Что сломалось':type==='lost'?'Где и когда потеряли':'Необязательно'}"></div>`;
+  $('waGo').textContent = { issue:'Выдать', transfer:'Отправить', return:'Вернуть', repair:'В ремонт', lost:'Отметить', off:'Списать' }[type];
+  if(type==='issue' && !projs.length){ toast('Нет ближайших проектов — сначала создай проект','⚠️'); return; }
+  openModal('whActOverlay');
+};
+App.whActGo = () => {
+  const { type } = WA;
+  let lines = WA.lines;
+  document.querySelectorAll('[data-line]').forEach(inp => { const l = lines[+inp.dataset.line]; l.qty = Math.max(1, Math.min(l.max, Number(inp.value)||1)); });
+  const note = $('waNote').value.trim();
+  const projectId = type==='issue' ? $('waProject').value : (WA.preset.projectId||'');
+  const to = ['transfer','return'].includes(type) ? $('waTo').value : '';
+  if(type==='transfer'){ lines = lines.filter(l => (isBulk(l.it) ? l.from : l.it.site) !== to); if(!lines.length){ toast('Всё выбранное уже на этом складе','⚠️'); return; } }
+  const fromSites = [...new Set(lines.map(l => isBulk(l.it) ? l.from : l.it.site).filter(Boolean))];
+  const move = { id: uid('m'), type, by: me(), at: Date.now(), day: iso(), note, projectId, to, from: fromSites.length===1 ? fromSites[0] : (fromSites.join(',')||''),
+    status: type==='transfer' ? 'transit' : 'done',
+    items: lines.map(l => ({ id:l.it.id, inv:l.it.id, name:l.it.name, kind:l.it.kind||'unit', qty:l.qty, from:isBulk(l.it)?(l.from||''):l.it.site, pid:l.pid||'' })) };
+  const jobs = [];
+  lines.forEach(l => {
+    const it = l.it;
+    if(isBulk(it)){
+      const stock = { ...(it.stock||{}) }, out = { ...(it.out||{}) };
+      if(type==='issue'){ stock[l.from] = (stock[l.from]||0) - l.qty; out[projectId] = (out[projectId]||0) + l.qty; }
+      if(type==='transfer'){ stock[l.from] = (stock[l.from]||0) - l.qty; }
+      if(type==='return'){ out[l.pid] = (out[l.pid]||0) - l.qty; stock[to] = (stock[to]||0) + l.qty; }
+      if(type==='off'){ stock[l.from] = (stock[l.from]||0) - l.qty; }
+      Object.keys(stock).forEach(k => { if(stock[k]<=0) delete stock[k]; });
+      Object.keys(out).forEach(k => { if(out[k]<=0) delete out[k]; });
+      it.stock = stock; it.out = out;
+      jobs.push(DB.patchWh(it.id, { stock, out }));
+    } else {
+      const patch = {
+        issue:   { status:'out', projectId, holder: me() },
+        transfer:{ status:'transit', toSite: to, moveId: move.id },
+        return:  { status:'in', site: to, projectId:'', holder:'', toSite:'' },
+        repair:  { status:'repair' },
+        lost:    { status:'lost' },
+        off:     { status:'off', projectId:'' }
+      }[type];
+      Object.assign(it, patch);
+      jobs.push(DB.patchWh(it.id, patch));
+    }
+  });
+  jobs.push(DB.saveMove(move));
+  App.closeModal('whActOverlay');
+  WV.sel = {};
+  refresh(); if(S.view==='project') renderPane();
+  const p = projBy(projectId);
+  const what = `${lines.length} ${plural(lines.length,'позицию','позиции','позиций')}`;
+  const txt = { issue:`выдал(а) ${what} на «${p?p.name:'проект'}»`, transfer:`отправил(а) ${what}: ${siteName(move.from)} → ${siteName(to)}`, return:`вернул(а) ${what} на склад «${siteName(to)}»`,
+    repair:`отправил(а) в ремонт ${what}`, lost:`отметил(а) утерянными ${what}`, off:`списал(а) ${what}` }[type];
+  Promise.all(jobs).then(() => { toast({ issue:'Выдано на проект', transfer:'Отправлено — ждёт приёмки', return:'Вернули на склад', repair:'Отправлено в ремонт', lost:'Отмечено', off:'Списано' }[type], '📦'); logAct('stock', txt, { projectId }); })
+    .catch(e => { console.error(e); toast('Часть изменений не сохранилась — проверь правила Firestore','❌'); });
+};
+
+// ── приёмка ──────────────────────────────────────────────────
+let WAcc = null;
+App.whAccept = id => {
+  const m = S.wh.moves.find(x=>x.id===id); if(!m) return;
+  WAcc = m;
+  $('whActTitle').textContent = 'Приёмка: ' + siteName(m.from) + ' → ' + siteName(m.to);
+  $('whActBody').innerHTML = `<p class="small muted" style="margin-bottom:12px">Отметь, что приехало. Не отмеченные единицы получат статус «Утеряно» — их будет видно в фильтре.</p>
+    <div class="wa-lines">${(m.items||[]).map((x,i)=>`<div class="item-row">
+      ${x.kind==='bulk' ? `<span class="t">${esc(x.name)} <span class="muted small">отправлено ${x.qty}</span></span><input class="inp" type="number" min="0" max="${x.qty}" value="${x.qty}" data-acc="${i}" style="width:84px;padding:6px 8px">`
+        : `<label class="row" style="flex:1;flex-wrap:nowrap"><input type="checkbox" data-acc="${i}" checked> <span class="wh-inv">${esc(x.inv)}</span> <span class="t">${esc(x.name)}</span></label>`}
+    </div>`).join('')}</div>
+    <div class="field" style="margin-top:12px"><label class="lbl">Комментарий</label><input class="inp" id="waNote" placeholder="Необязательно"></div>`;
+  $('waGo').textContent = 'Принять';
+  WA = { type:'accept' };
+  openModal('whActOverlay');
+};
+function whAcceptGo(){
+  const m = WAcc; const jobs = [], missing = [];
+  let got = 0;
+  (m.items||[]).forEach((x,i) => {
+    const inp = document.querySelector(`[data-acc="${i}"]`); const it = whItem(x.id);
+    if(x.kind==='bulk'){
+      const q = Math.max(0, Math.min(x.qty, Number(inp.value)||0)); got += q ? 1 : 0;
+      if(q < x.qty) missing.push(`${x.name} −${x.qty-q}`);
+      if(it && q){ const stock = { ...(it.stock||{}) }; stock[m.to] = (stock[m.to]||0) + q; it.stock = stock; jobs.push(DB.patchWh(it.id, { stock })); }
+    } else if(it){
+      if(inp.checked){ got++; Object.assign(it, { status:'in', site:m.to, toSite:'', moveId:'' }); jobs.push(DB.patchWh(it.id, { status:'in', site:m.to, toSite:'', moveId:'' })); }
+      else { missing.push(x.inv); Object.assign(it, { status:'lost', toSite:'', moveId:'' }); jobs.push(DB.patchWh(it.id, { status:'lost', toSite:'', moveId:'' })); }
+    }
+  });
+  const note = $('waNote').value.trim();
+  jobs.push(DB.patchMove(m.id, { status:'done', acceptedBy: me(), acceptedAt: Date.now(), missing }));
+  jobs.push(DB.saveMove({ id: uid('m'), type:'accept', by: me(), at: Date.now(), day: iso(), from:m.from, to:m.to, status:'done', note, missing, ref:m.id,
+    items:(m.items||[]).map(x=>({ ...x })) }));
+  m.status = 'done';
+  App.closeModal('whActOverlay'); refresh();
+  Promise.all(jobs).then(() => {
+    if(missing.length) toast('Принято. Не пришло: '+missing.join(', '),'⚠️'); else { toast('Всё принято на склад «'+siteName(m.to)+'»','✅'); FX.fireworks(innerWidth/2, innerHeight/3, 1); }
+    logAct('stock', `принял(а) на склад «${siteName(m.to)}» перемещение из «${siteName(m.from)}»${missing.length?' (не пришло: '+missing.join(', ')+')':''}`, {});
+  }).catch(()=>toast('Не получилось сохранить приёмку','❌'));
+}
+App.whActConfirm = () => { if(WA && WA.type==='accept') whAcceptGo(); else App.whActGo(); };
+App.whReturnProject = pid => {
+  WV.sel = {};
+  S.wh.items.forEach(i => { if(isBulk(i) ? (i.out||{})[pid] : (i.status==='out' && i.projectId===pid)) WV.sel[i.id] = { qty:1 }; });
+  App.whAct('return', { projectId: pid });
+};
+
+// ── добавление ───────────────────────────────────────────────
+App.whAdd = () => {
+  $('waKind').value = 'unit';
+  ['waName','waModel','waNote2','waCost'].forEach(id => $(id).value = '');
+  $('waQty').value = 1;
+  $('waCat').innerHTML = Object.entries(WH_CATS).map(([k,c])=>`<option value="${k}">${c.ic} ${c.label}</option>`).join('');
+  $('waSite').innerHTML = whSites().map(s=>`<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('');
+  $('waCostWrap').classList.toggle('hidden', !canMoney());
+  App.whAddPreview();
+  openModal('whAddOverlay');
+  setTimeout(()=>$('waName').focus(), 50);
+};
+App.whAddPreview = () => {
+  const kind = $('waKind').value, cat = $('waCat').value, site = $('waSite').value, n = Math.max(1, Number($('waQty').value)||1);
+  $('waQtyLbl').textContent = kind==='bulk' ? 'Количество на складе' : 'Сколько единиц';
+  $('waKindHint').textContent = kind==='bulk' ? 'Партия: считаем количеством, одна бирка на коробку. Для скотча, батареек, салфеток.' : 'Поштучно: у каждой единицы свой номер и QR. Для винтовок, шлемов, ноутбуков, камер.';
+  const gen = nextInv(cat, site, kind);
+  $('waPreview').innerHTML = kind==='bulk' ? `Номер партии: <span class="wh-inv">${gen(1)}</span>` : `Номера: <span class="wh-inv">${gen(1)}</span>${n>1?` … <span class="wh-inv">${gen(n)}</span>`:''}`;
+};
+App.whAddGo = async () => {
+  const name = $('waName').value.trim(); if(!name){ toast('Впиши название','⚠️'); return; }
+  const kind = $('waKind').value, cat = $('waCat').value, site = $('waSite').value, n = Math.max(1, Math.min(500, Number($('waQty').value)||1));
+  const base = { name, model:$('waModel').value.trim(), cat, note:$('waNote2').value.trim(), createdAt: iso(), createdBy: me() };
+  const gen = nextInv(cat, site, kind), cost = $('waCost').value;
+  const docs = kind==='bulk' ? [{ ...base, id: gen(1), kind:'bulk', unit:'шт', stock:{ [site]: n }, out:{} }]
+    : Array.from({ length:n }, (_,i) => ({ ...base, id: gen(i+1), kind:'unit', site, status:'in', projectId:'', holder:'' }));
+  App.closeModal('whAddOverlay');
+  try{
+    await DB.batchWh(docs);
+    if(canMoney() && cost) for(const d of docs) await DB.saveWhCost(d.id, { cost });
+    await DB.saveMove({ id: uid('m'), type:'add', by: me(), at: Date.now(), day: iso(), to: site, status:'done', items: docs.map(d=>({ id:d.id, inv:d.id, name:d.name, kind:d.kind, qty: kind==='bulk'?n:1 })) });
+    toast(kind==='bulk' ? `Добавлено: ${name} × ${n}` : `Добавлено ${docs.length} ед. · ${docs[0].id}${docs.length>1?' … '+docs[docs.length-1].id:''}`, '📦');
+    logAct('stock', `добавил(а) на склад «${siteName(site)}»: ${name} × ${n}`, {});
+    if(kind!=='bulk' && confirm('Распечатать бирки для новых позиций?')) App.whPrint(docs.map(d=>d.id), docs);
+  }catch(e){ console.error(e); toast('Не получилось добавить — проверь правила Firestore','❌'); }
+};
+
+// ── импорт из Excel ─────────────────────────────────────────
+let whImportRows = [];
+App.whImport = () => { whImportRows = []; $('whImpFile').value = ''; $('whImpPreview').innerHTML = ''; openModal('whImportOverlay'); };
+document.addEventListener('change', e => {
+  if(e.target.id!=='whImpFile') return;
+  const file = e.target.files[0]; if(!file) return;
+  const r = new FileReader();
+  r.onload = ev => {
+    try{
+      const wb = XLSX.read(ev.target.result, { type:'array' });
+      whImportRows = [];
+      wb.SheetNames.forEach(sn => {
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header:1, defval:'' });
+        let h = -1, col = {};
+        for(let i=0;i<Math.min(rows.length,15);i++){
+          const r0 = rows[i].map(x=>String(x).toLowerCase().trim());
+          if(r0.filter(Boolean).length < 2) continue;
+          const iName = r0.findIndex(x=>x.length<30 && /наименован|название|позиция|оборудован|предмет/.test(x));
+          if(iName>=0){ h = i; col = { name:iName, qty:r0.findIndex(x=>/кол|шт|количество/.test(x)), site:r0.findIndex(x=>/склад|откуда|место|город|локац/.test(x)),
+            cat:r0.findIndex(x=>/катег|тип|группа/.test(x)), model:r0.findIndex(x=>/модел/.test(x)), note:r0.findIndex(x=>/примеч|коммент|заметк/.test(x)) }; break; }
+        }
+        if(h<0) return;
+        for(let i=h+1;i<rows.length;i++){
+          const r1 = rows[i]; const name = String(r1[col.name]||'').trim(); if(!name) continue;
+          const qty = Math.max(1, parseInt(String(col.qty>=0?r1[col.qty]:1).replace(/\D/g,''),10)||1);
+          const catText = col.cat>=0 ? r1[col.cat] : '';
+          const cat = Object.keys(WH_CATS).find(k => String(catText).toUpperCase()===k) || guessCat(catText+' '+name);
+          const site = guessSite(col.site>=0 ? r1[col.site] : sn);
+          whImportRows.push({ name, qty, cat, site, model: col.model>=0 ? String(r1[col.model]||'').trim() : '', note: col.note>=0 ? String(r1[col.note]||'').trim() : '', kind: cat==='CN' ? 'bulk' : 'unit' });
+        }
+      });
+      renderImport();
+    }catch(err){ console.error(err); $('whImpPreview').innerHTML = '<div class="empty">Не получилось прочитать файл</div>'; }
+  };
+  r.readAsArrayBuffer(file);
+});
+function renderImport(){
+  const el = $('whImpPreview');
+  if(!whImportRows.length){ el.innerHTML = '<div class="empty">Не нашла строк. Нужна колонка «Наименование» или «Название» (и по желанию «Кол-во», «Склад», «Категория»).</div>'; return; }
+  const units = whImportRows.filter(r=>r.kind==='unit').reduce((a,r)=>a+r.qty,0);
+  el.innerHTML = `<p class="small" style="margin-bottom:8px">Найдено строк: <b>${whImportRows.length}</b> · будет создано <b>${units}</b> единиц с номерами и <b>${whImportRows.filter(r=>r.kind==='bulk').length}</b> партий. Проверь категории и склад:</p>
+    <div class="imp-table">${whImportRows.map((r,i)=>`<div class="imp-row">
+      <span class="t">${esc(r.name)}${r.model?' <span class="muted">'+esc(r.model)+'</span>':''}</span>
+      <select class="inp" onchange="App.whImpSet(${i},'cat',this.value)">${Object.entries(WH_CATS).map(([k,c])=>`<option value="${k}" ${r.cat===k?'selected':''}>${c.ic} ${c.label}</option>`).join('')}</select>
+      <select class="inp" onchange="App.whImpSet(${i},'site',this.value)">${whSites().map(s=>`<option value="${esc(s.id)}" ${r.site===s.id?'selected':''}>${esc(s.id)}</option>`).join('')}</select>
+      <select class="inp" onchange="App.whImpSet(${i},'kind',this.value)"><option value="unit" ${r.kind==='unit'?'selected':''}>поштучно</option><option value="bulk" ${r.kind==='bulk'?'selected':''}>партия</option></select>
+      <input class="inp" type="number" min="1" value="${r.qty}" onchange="App.whImpSet(${i},'qty',this.value)">
+      <button class="rmv" onclick="App.whImpSet(${i},'del')">×</button></div>`).join('')}</div>`;
+}
+App.whImpSet = (i, k, v) => { if(k==='del') whImportRows.splice(i,1); else whImportRows[i][k] = k==='qty' ? Math.max(1, Number(v)||1) : v; renderImport(); };
+App.whImportGo = async () => {
+  if(!whImportRows.length){ toast('Сначала выбери файл','⚠️'); return; }
+  const taken = []; const docs = [];
+  whImportRows.forEach(r => {
+    const base = { name:r.name, model:r.model, cat:r.cat, note:r.note, createdAt: iso(), createdBy: me() };
+    const gen = nextInv(r.cat, r.site, r.kind, taken);
+    if(r.kind==='bulk'){
+      const same = d => isBulk(d) && String(d.name).trim().toLowerCase()===r.name.toLowerCase() && String(d.model||'').trim().toLowerCase()===String(r.model||'').toLowerCase();
+      let target = docs.find(same);
+      if(!target){ const ex = S.wh.items.find(same); if(ex){ target = { ...ex, stock:{ ...(ex.stock||{}) }, _existing:true }; docs.push(target); } }
+      if(target){ target.stock[r.site] = (target.stock[r.site]||0) + r.qty; return; }
+      const id = gen(1); taken.push(id); docs.push({ ...base, id, kind:'bulk', unit:'шт', stock:{ [r.site]: r.qty }, out:{} }); }
+    else for(let n=1;n<=r.qty;n++){ const id = gen(n); taken.push(id); docs.push({ ...base, id, kind:'unit', site:r.site, status:'in', projectId:'', holder:'' }); }
+  });
+  $('whImpGo').disabled = true; $('whImpGo').textContent = 'Загружаю…';
+  let ok = 0;
+  try{ await DB.batchWh(docs); ok = docs.length; }catch(e){ console.error(e); }
+  await DB.saveMove({ id: uid('m'), type:'add', by: me(), at: Date.now(), day: iso(), status:'done', note:'Импорт из Excel', items: docs.map(d=>({ id:d.id, inv:d.id, name:d.name, kind:d.kind, qty: d.kind==='bulk' ? sumObj(d.stock) : 1 })) }).catch(()=>{});
+  $('whImpGo').disabled = false; $('whImpGo').textContent = 'Загрузить на склад';
+  App.closeModal('whImportOverlay');
+  toast(ok ? `Загружено позиций: ${ok}` : 'Не получилось загрузить — проверь правила Firestore', ok ? '📦' : '❌');
+  logAct('stock', `загрузил(а) на склад список из Excel: ${ok} позиций`, {});
+};
+
+// ── печать бирок ─────────────────────────────────────────────
+App.whPrint = (ids, fresh) => {
+  ids = ids || Object.keys(WV.sel);
+  if(!ids.length) ids = whFiltered().map(i=>i.id);
+  const items = ids.map(id => whItem(id) || (fresh||[]).find(d=>d.id===id)).filter(Boolean);
+  if(!items.length){ toast('Нечего печатать','⚠️'); return; }
+  $('printArea').innerHTML = `<div class="labels-sheet">${items.map(it => `<div class="label">
+    <img src="${qrImg(it.id,4)}" alt=""><div class="lbl-t"><div class="lbl-inv">${esc(it.id)}</div><div class="lbl-name">${esc(it.name)}${it.model?' · '+esc(it.model):''}</div><div class="lbl-brand">Magic Projects · склад</div></div></div>`).join('')}</div>`;
+  $('labelsCount').textContent = `${items.length} ${plural(items.length,'бирка','бирки','бирок')}`;
+  openModal('whPrintOverlay');
+};
+App.whPrintGo = () => { document.body.classList.add('printing-labels'); setTimeout(()=>{ window.print(); setTimeout(()=>document.body.classList.remove('printing-labels'), 400); }, 100); };
+
+// ── сканер ───────────────────────────────────────────────────
+const SC = { stream:null, raf:0, det:null, last:{}, found:[], ctx:null, projectId:'' };
+App.whScan = (opts={}) => {
+  SC.found = []; SC.last = {}; SC.projectId = opts.projectId || '';
+  $('scanTitle').textContent = SC.projectId ? 'Сканирую на «'+((projBy(SC.projectId)||{}).name||'проект')+'»' : 'Сканирование';
+  $('scanList').innerHTML = ''; $('scanMsg').textContent = 'Наведи камеру на QR-бирку';
+  $('scanManual').value = '';
+  openModal('scanOverlay');
+  startCam();
+};
+async function startCam(){
+  const v = $('scanVideo');
+  try{
+    SC.stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' }, audio:false });
+    v.srcObject = SC.stream; await v.play();
+    if('BarcodeDetector' in window){ try{ SC.det = new BarcodeDetector({ formats:['qr_code'] }); }catch(e){ SC.det = null; } }
+    let t = 0;
+    const tick = async ts => {
+      if(!SC.stream) return;
+      if(ts - t > 180){
+        t = ts;
+        try{
+          if(SC.det){ const r = await SC.det.detect(v); if(r[0]) onCode(r[0].rawValue); }
+          else if(window.jsQR && v.videoWidth){
+            const c = SC.ctx || (SC.ctx = document.createElement('canvas').getContext('2d', { willReadFrequently:true }));
+            const w = 480, h = Math.round(v.videoHeight * 480 / v.videoWidth);
+            c.canvas.width = w; c.canvas.height = h; c.drawImage(v, 0, 0, w, h);
+            const code = jsQR(c.getImageData(0,0,w,h).data, w, h, { inversionAttempts:'dontInvert' });
+            if(code) onCode(code.data);
+          }
+        }catch(e){}
+      }
+      SC.raf = requestAnimationFrame(tick);
+    };
+    SC.raf = requestAnimationFrame(tick);
+  }catch(e){
+    $('scanMsg').textContent = 'Камера недоступна. Разреши доступ к камере в браузере или введи номер вручную ниже.';
+  }
+}
+function stopCam(){ cancelAnimationFrame(SC.raf); if(SC.stream){ SC.stream.getTracks().forEach(t=>t.stop()); SC.stream = null; } }
+function onCode(text){
+  const m = String(text).match(/#warehouse\/([A-Za-z0-9\-]+)/);
+  const inv = (m ? m[1] : String(text).trim()).toUpperCase();
+  const now = Date.now(); if(SC.last[inv] && now - SC.last[inv] < 2500) return; SC.last[inv] = now;
+  const it = whItem(inv);
+  if(!it){ $('scanMsg').textContent = 'Код не из нашего склада: ' + inv.slice(0,40); return; }
+  if(!SC.found.includes(inv)){ SC.found.push(inv); WV.sel[inv] = WV.sel[inv] || { qty:1 }; }
+  try{ navigator.vibrate && navigator.vibrate(60); }catch(e){}
+  $('scanMsg').textContent = '✓ ' + inv + ' · ' + it.name;
+  $('scanList').innerHTML = SC.found.map(id => { const x = whItem(id); return `<div class="item-row"><span class="wh-inv">${esc(id)}</span><span class="t">${esc(x.name)} <span class="muted small">${esc(whWhere(x))}</span></span>${whPill(x)}</div>`; }).join('');
+  $('scanCount').textContent = SC.found.length ? `Отсканировано: ${SC.found.length}` : '';
+}
+App.scanManual = () => { const v = $('scanManual').value.trim(); if(v){ onCode(v); $('scanManual').value=''; } };
+App.scanClose = () => { stopCam(); App.closeModal('scanOverlay'); };
+App.scanDone = () => {
+  stopCam(); App.closeModal('scanOverlay');
+  if(!SC.found.length) return;
+  if(SC.projectId){ App.whAct('issue', { projectId: SC.projectId }); return; }
+  if(SC.found.length===1){ App.whItem(SC.found[0]); return; }
+  if(S.view!=='warehouse') App.go('warehouse'); else VIEWS.warehouse.body();
+  toast('Выбрано '+SC.found.length+' — выбери действие внизу','📦');
+};
+
+// ── оборудование в проекте ───────────────────────────────────
+function projectEquipHTML(pid){
+  const rows = [];
+  S.wh.items.forEach(i => { if(isBulk(i)){ const q = (i.out||{})[pid]; if(q) rows.push({ it:i, qty:q }); } else if(i.status==='out' && i.projectId===pid) rows.push({ it:i, qty:1 }); });
+  const units = rows.filter(r=>!isBulk(r.it)).length;
+  return `<div class="toolbar"><button class="btn" onclick="App.whPick('${esc(pid)}')">+ Выдать со склада</button><button class="btn ghost" onclick="App.whScan({projectId:'${esc(pid)}'})">📷 Сканировать на проект</button>
+      ${rows.length?`<button class="btn ghost" onclick="App.whReturnProject('${esc(pid)}')">↙ Вернуть всё на склад</button>`:''}<span class="spacer"></span>
+      <span class="small muted">${rows.length?`На проекте: ${units} ед.${rows.length-units?' + '+(rows.length-units)+' вид. расходников':''}`:''}</span></div>
+    <div class="form-card">${rows.length ? equipSummary(rows) : '<div class="empty">Оборудование на этот проект ещё не выдано</div>'}</div>`;
+}
+// выдача по количеству: «20 винтовок со склада Москва»
+let WP = null;
+App.whPick = pid => {
+  WP = { pid, site: whSites()[0].id };
+  renderPick(); openModal('whPickOverlay');
+};
+App.whPickSite = s => { WP.site = s; renderPick(); };
+function renderPick(){
+  const groups = new Map();
+  S.wh.items.forEach(i => {
+    if(isBulk(i)){ const n = (i.stock||{})[WP.site]||0; if(n) groups.set('b:'+i.id, { name:i.name, model:i.model, cat:i.cat, avail:n, bulk:true, id:i.id }); }
+    else if((i.status||'in')==='in' && i.site===WP.site){ const k = i.cat+'|'+i.name+'|'+(i.model||''); const g = groups.get(k) || { name:i.name, model:i.model, cat:i.cat, avail:0, ids:[] }; g.avail++; g.ids.push(i.id); groups.set(k, g); }
+  });
+  WP.groups = [...groups.values()].sort((a,b)=>String(a.cat+a.name).localeCompare(String(b.cat+b.name),'ru'));
+  $('whPickBody').innerHTML = `<div class="field"><label class="lbl">Со склада</label><div class="chips">${whSites().map(s=>`<button class="chip ${WP.site===s.id?'on':''}" onclick="App.whPickSite('${esc(s.id)}')">${esc(s.name)}</button>`).join('')}</div></div>
+    <p class="small muted" style="margin-bottom:10px">Впиши, сколько нужно — система сама возьмёт свободные единицы и запишет их номера на проект.</p>
+    ${WP.groups.length ? `<div class="wa-lines">${WP.groups.map((g,i)=>`<div class="item-row"><span>${(WH_CATS[g.cat]||WH_CATS.OT).ic}</span><span class="t">${esc(g.name)}${g.model?' <span class="muted small">'+esc(g.model)+'</span>':''} <span class="muted small">· есть ${g.avail}</span></span>
+      <input class="inp" type="number" min="0" max="${g.avail}" value="0" data-pick="${i}" style="width:84px;padding:6px 8px"></div>`).join('')}</div>` : '<div class="empty">На этом складе свободного оборудования нет</div>'}`;
+}
+App.whPickGo = () => {
+  WV.sel = {};
+  document.querySelectorAll('[data-pick]').forEach(inp => {
+    const g = WP.groups[+inp.dataset.pick], n = Math.max(0, Math.min(g.avail, Number(inp.value)||0)); if(!n) return;
+    if(g.bulk) WV.sel[g.id] = { qty:n }; else g.ids.slice().sort().slice(0,n).forEach(id => WV.sel[id] = { qty:1 });
+  });
+  if(!selCount()){ toast('Укажи количество хотя бы у одной позиции','⚠️'); return; }
+  App.closeModal('whPickOverlay');
+  App.whAct('issue', { projectId: WP.pid });
 };
 
 // ═════════════════════════════════════════════════════════════
@@ -2307,6 +3294,10 @@ function getNotifs(){
   const out = [];
   const RL = {3:'за 3 дня',7:'за неделю',14:'за 2 недели',30:'за месяц'};
   myOverdue().forEach(t => out.push({ type:'urgent', icon:'⏰', title:'Просрочена задача: '+t.title, desc:'Дедлайн был '+dlong(t.deadline), task:t.id }));
+  (S.wh && S.wh.moves || []).filter(m => m.status==='transit').forEach(m => out.push({ type:'warn', icon:'📦', title:`Ждёт приёмки: ${siteName(m.from)} → ${siteName(m.to)}`, desc:`${(m.items||[]).length} поз. · отправил(а) ${uname(m.by)} ${dshort(m.day)}`, wh:true }));
+  S.projects.forEach(p => { const d = daysUntil(p.dateEnd||p.date); if(d===null || d>=-1) return;
+    const n = (S.wh && S.wh.items || []).filter(i => (i.kind==='bulk' ? (i.out||{})[p.id] : i.status==='out' && i.projectId===p.id)).length;
+    if(n) out.push({ type:'warn', icon:'↙', title:`Не вернули оборудование: ${p.name}`, desc:`${n} поз. всё ещё числятся на проекте`, id:p.id }); });
   myOpenTasks().filter(t => t.deadline && daysUntil(t.deadline)===0).forEach(t => out.push({ type:'warn', icon:'📌', title:'Сегодня дедлайн: '+t.title, desc:'Задача на сегодня', task:t.id }));
   if(isCRM()) S.clients.filter(c => c.nextDate && daysUntil(c.nextDate)<0 && !['won','lost'].includes(c.status||'new'))
     .slice(0,10).forEach(c => out.push({ type:'warn', icon:'🤝', title:'Просрочено касание: '+(c.company||c.contact), desc:c.nextStep||'', client:c.id }));
@@ -2333,7 +3324,7 @@ VIEWS.notifs = {
   body(){
     const n = getNotifs();
     const groups = [['Срочно','urgent'],['Внимание','warn'],['Информация','info']];
-    $('view').innerHTML = groups.map(([t,k]) => { const l = n.filter(x=>x.type===k); return l.length ? `<div class="grp-h ${k==='urgent'?'red':''}" style="margin:16px 0 8px">${t} · ${l.length}</div>` + l.map(x => `<div class="notif ${k}" onclick="${x.task?`App.openTask('${esc(x.task)}')`:x.client?`App.openClient('${esc(x.client)}')`:`App.go('project','${esc(x.id)}')`}"><span class="ic">${x.icon}</span><div><div class="t">${esc(x.title)}</div><div class="small muted">${esc(x.desc)}</div></div></div>`).join('') : ''; }).join('')
+    $('view').innerHTML = groups.map(([t,k]) => { const l = n.filter(x=>x.type===k); return l.length ? `<div class="grp-h ${k==='urgent'?'red':''}" style="margin:16px 0 8px">${t} · ${l.length}</div>` + l.map(x => `<div class="notif ${k}" onclick="${x.wh?`App.whTab('transit')`:x.task?`App.openTask('${esc(x.task)}')`:x.client?`App.openClient('${esc(x.client)}')`:`App.go('project','${esc(x.id)}')`}"><span class="ic">${x.icon}</span><div><div class="t">${esc(x.title)}</div><div class="small muted">${esc(x.desc)}</div></div></div>`).join('') : ''; }).join('')
       || '<div class="empty" style="padding:50px">Всё спокойно — уведомлений нет 🎯</div>';
   }
 };
@@ -2473,7 +3464,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/fireba
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithEmailAndPassword, signOut, onAuthStateChanged }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { getFirestore, collection, doc, setDoc, addDoc, updateDoc, deleteDoc, getDoc, getDocs, onSnapshot,
-  serverTimestamp, query, where, deleteField }
+  serverTimestamp, query, where, deleteField, writeBatch }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -2564,6 +3555,14 @@ onAuthStateChanged(auth, async user => {
     subs.push(onSnapshot(query(col, where('shared', '==', true)), s => App.onTasks('shared', listOf(s)), logErr('tasks')));
   }
   if (crm) subs.push(onSnapshot(collection(db, 'clients'), s => App.onClients(listOf(s)), logErr('clients')));
+  // Склад: видят все
+  subs.push(onSnapshot(collection(db, 'whSites'), snap => {
+    const list = listOf(snap); App.onWh('sites', list);
+    if (isOwner && !list.length) [['MSK','Москва',1],['SPB','Санкт-Петербург',2]].forEach(([id,name,order]) => setDoc(doc(db,'whSites',id), { name, order, createdAt: serverTimestamp() }).catch(()=>{}));
+  }, logErr('whSites')));
+  subs.push(onSnapshot(collection(db, 'whItems'), s => App.onWh('items', listOf(s)), logErr('whItems')));
+  subs.push(onSnapshot(collection(db, 'whMoves'), s => App.onWh('moves', listOf(s)), logErr('whMoves')));
+  if (canMoney) subs.push(onSnapshot(collection(db, 'whCosts'), s => App.onWh('costs', listOf(s)), logErr('whCosts')));
   if (canMoney) subs.push(onSnapshot(collection(db, 'finance'), s => App.onFinance(listOf(s)), logErr('finance')));
   if (admin) {
     const from = new Date(); from.setDate(from.getDate() - 45);
@@ -2627,6 +3626,23 @@ window.DB = {
   saveClient: d => setDoc(doc(db, 'clients', d.id), { ...d, ...stamp() }),
   deleteClient: id => deleteDoc(doc(db, 'clients', id)),
   saveUser: (email, d) => setDoc(doc(db, 'users', email), { ...d, email, ...stamp() }, { merge: true }),
+  saveWh: d => setDoc(doc(db, 'whItems', d.id), { ...d, ...stamp() }),
+  batchWh: async list => {
+    for (let i = 0; i < list.length; i += 400) {
+      const b = writeBatch(db);
+      list.slice(i, i + 400).forEach(d => {
+        const { _existing, ...data } = d;
+        if (_existing) b.update(doc(db, 'whItems', d.id), { stock: data.stock, ...stamp() });
+        else b.set(doc(db, 'whItems', d.id), { ...data, ...stamp() });
+      });
+      await b.commit();
+    }
+  },
+  patchWh: (id, d) => updateDoc(doc(db, 'whItems', id), { ...d, ...stamp() }),
+  delWh: id => deleteDoc(doc(db, 'whItems', id)),
+  saveMove: d => setDoc(doc(db, 'whMoves', d.id), d),
+  patchMove: (id, d) => updateDoc(doc(db, 'whMoves', id), d),
+  saveWhCost: (id, d) => setDoc(doc(db, 'whCosts', id), { ...d, ...stamp() }),
   logActivity: d => addDoc(collection(db, 'activity'), d),
   saveReport: d => setDoc(doc(db, 'dailyReports', `${me}_${d.date}`), { ...d, author: me, updatedAt: serverTimestamp() }),
   fetchReports: async () => listOf(await getDocs(collection(db, 'dailyReports')))
