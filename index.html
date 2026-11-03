@@ -676,6 +676,7 @@ body.is-dragging{cursor:grabbing;user-select:none}
   .mx th.c-name,.mx th.c-chk{z-index:3}
 }
 
+.feed-i.t-del .feed-dot{background:linear-gradient(120deg,#7d1630,#b02042);color:#fff;border-color:transparent;box-shadow:0 0 10px var(--burg-glow)}
 /* ── ПЛАНШЕТ И ТЕЛЕФОН ── */
 @media (max-width:1100px){
   .home-grid{grid-template-columns:1fr}
@@ -898,6 +899,11 @@ body.is-dragging{cursor:grabbing;user-select:none}
           <option value="member">Участник — проекты и задачи</option>
         </select>
       </div>
+      <div class="field" id="pfWhWrap"><label class="lbl">Склад</label><select class="inp" id="pfWh">
+        <option value="full">Полный доступ — добавлять, списывать, удалять</option>
+        <option value="ops">Выдавать, перемещать, принимать</option>
+        <option value="view">Только смотреть</option></select>
+        <div class="small muted" style="margin-top:4px">Для партнёра и ассистента всегда полный.</div></div>
       <label class="field row small" id="pfMoneyWrap" style="font-weight:600"><input type="checkbox" id="pfMoney"> Вносит суммы проектов (цена, аванс, расходы) — без аналитики и дашборда</label>
       <div class="field"><label class="lbl">За что отвечает</label><textarea class="inp" id="pfResp" placeholder="Закупки, наградная продукция, документы по тендерам…"></textarea></div>
       <div class="field"><label class="lbl">Направления (через запятую)</label><input class="inp" id="pfDirs" placeholder="Top Gun, Laserwar, ФФС МО, Корпоративный спорт"></div>
@@ -1181,6 +1187,7 @@ App.onTasks = (set, list) => {
 App.onClients = list => { S.clients = list; refresh(); };
 App.onFinance = list => { S.finance = {}; list.forEach(f => S.finance[f.id] = f); refresh(); };
 App.onActivity = list => { S.activity = list; refresh(); };
+App.onNotifySettings = d => { S.notify = d || {}; };
 
 // ═════════════════════════════════════════════════════════════
 //  НАВИГАЦИЯ
@@ -2295,6 +2302,8 @@ App.openPerson = email => {
   $('pfRole').value = (u && u.role && u.role!=='owner') ? u.role : 'pm';
   $('pfMoneyWrap').classList.toggle('hidden', !editableRole);
   $('pfMoney').checked = !!(u && u.canMoney);
+  $('pfWhWrap').classList.toggle('hidden', !editableRole);
+  $('pfWh').value = (u && u.wh) || (u && u.canMoney ? 'full' : 'ops');
   $('pfHint').classList.toggle('hidden', !!u);
   $('pfOff').classList.toggle('hidden', !(owner && u && u.role!=='owner'));
   $('pfOff').textContent = u && u.active===false ? 'Вернуть доступ' : 'Закрыть доступ';
@@ -2312,7 +2321,7 @@ App.savePerson = () => {
     if(!editPerson){ data.role = $('pfRole').value; data.active = true; data.createdAt = iso(); }
     else if(editPerson.role!=='owner') data.role = $('pfRole').value;
     else data.role = 'owner';
-    if(data.role!=='owner') data.canMoney = $('pfMoney').checked;
+    if(data.role!=='owner'){ data.canMoney = $('pfMoney').checked; data.wh = $('pfWh').value; }
   }
   App.closeModal('personOverlay');
   DB.saveUser(email, data).then(()=>toast(editPerson?'Профиль сохранён':'Добавлен(а) в команду: '+name,'✅')).catch(e=>{ console.error(e); toast('Не получилось сохранить — проверь правила Firestore','❌'); });
@@ -2508,14 +2517,37 @@ const WH_MOVE = {
   add:{ label:'Поступление', ic:'+' }
 };
 const WH_DEFAULT_SITES = [{ id:'MSK', name:'Москва' }, { id:'SPB', name:'Санкт-Петербург' }];
-S.wh = { sites:[], items:[], moves:[], costs:{}, loaded:false };
+S.wh = { sites:[], items:[], trash:[], moves:[], costs:{}, audit:[], loaded:false };
+S.notify = {};
 const WV = { tab:'items', site:'all', cat:'all', st:'all', q:'', group:true, open:{}, sel:{}, opened:null };
-const canStock = () => isAdmin() || isAssistant() || canMoney();
+// уровни доступа к складу: full — всё; ops — выдавать/перемещать/принимать; view — только смотреть
+const whLevel = () => {
+  if(isAdmin() || isAssistant()) return 'full';
+  const u = S.user ? (userBy(me()) || {}) : {};
+  const lvl = u.wh || (S.user && S.user.wh);
+  return lvl || (canMoney() ? 'full' : 'ops');
+};
+const canStock = () => whLevel()==='full';
+const canOps = () => whLevel()!=='view';
+const canCost = () => canMoney() && canStock();
+const TRASH_DAYS = 7;
 
+let whPurged = false, auditSeen = null;
 App.onWh = (kind, list) => {
   if(kind==='costs'){ S.wh.costs = {}; list.forEach(c => S.wh.costs[c.id] = c); }
+  else if(kind==='items'){ S.wh.items = list.filter(i=>!i.deleted); S.wh.trash = list.filter(i=>i.deleted); }
+  else if(kind==='audit'){
+    const fresh = auditSeen ? list.filter(a => !auditSeen.has(a.id) && a.who!==me()) : [];
+    auditSeen = new Set(list.map(a=>a.id));
+    S.wh.audit = list;
+    fresh.slice(0,3).forEach(a => toast(`Склад · ${uname(a.who)} ${a.text}`, '📦'));
+  }
   else S.wh[kind] = list;
-  if(kind==='items') S.wh.loaded = true;
+  if(kind==='items'){ S.wh.loaded = true;
+    if(S.role==='owner' && !whPurged){ whPurged = true;
+      const old = S.wh.trash.filter(i => i.deletedAt && Date.now()-i.deletedAt > TRASH_DAYS*86400000);
+      old.forEach(i => DB.delWh(i.id).then(()=>DB.audit({ action:'purge', text:`корзина очищена: ${i.id} «${i.name}» удалён навсегда (прошло ${TRASH_DAYS} дн.)`, ids:[i.id], day:iso(), at:Date.now() })).catch(()=>{}));
+    } }
   refresh();
   if(S.view==='project' && PP.tab==='equip') renderPane();
 };
@@ -2558,7 +2590,7 @@ function guessCat(text){
   if(/ноут|компьют|пк\b|монитор|мыш|клавиат|наушник|геймпад|роутер|коммутатор|джойст|системн/.test(t)) return 'PC';
   if(/камер|трансл|стрим|микрофон|штатив|свет|софтбокс|захват|obs|пульт|радиосист|рация|saramonic/.test(t)) return 'BR';
   if(/футбол|форм|одежд|худи|кепк|жилет|майк|костюм|шорт/.test(t)) return 'CL';
-  if(/скотч|лента|стяжк|батарейк|салфет|дезодор|маркер|бумаг|пакет|перчат|клей|изолент/.test(t)) return 'CN';
+  if(/расходн|скотч|лента|стяжк|батарейк|салфет|дезодор|маркер|бумаг|пакет|перчат|клей|изолент/.test(t)) return 'CN';
   return 'OT';
 }
 function guessSite(text){
@@ -2571,6 +2603,25 @@ function guessSite(text){
 const qrUrl = inv => location.origin + location.pathname + '#warehouse/' + inv;
 function qrImg(inv, cell){
   try{ const q = qrcode(0, 'M'); q.addData(qrUrl(inv)); q.make(); return q.createDataURL(cell||4, 2); }catch(e){ return ''; }
+}
+
+// ── история изменений и уведомления ─────────────────────────
+const WH_AUDIT = { add:'Добавление', import:'Импорт', edit:'Изменение', issue:'Выдача на проект', transfer:'Перемещение', return:'Возврат', accept:'Приёмка',
+  repair:'В ремонт', lost:'Утеряно', off:'Списание', delete:'Удаление в корзину', restore:'Восстановление', purge:'Удалено навсегда', cost:'Стоимость' };
+function whLog(action, text, ids, projectId){
+  logAct('stock', text, { projectId: projectId||'' });
+  const entry = { action, text, ids:(ids||[]).slice(0,200), projectId: projectId||'', day: iso(), at: Date.now() };
+  if(DB.audit) DB.audit(entry).catch(()=>{});
+  tgNotify(`📦 Склад · ${uname(me())} ${text}`);
+}
+function tgNotify(text){
+  const n = S.notify || {};
+  if(!n.tgToken || !n.tgChat || n.whEvents===false) return;
+  if(me()==='slavavladislava@gmail.com' && !n.self) return;
+  try{
+    fetch('https://api.telegram.org/bot'+encodeURIComponent(n.tgToken).replace(/%3A/gi,':')+'/sendMessage', { method:'POST', mode:'no-cors',
+      body: new URLSearchParams({ chat_id: n.tgChat, text, disable_web_page_preview:'true' }) }).catch(()=>{});
+  }catch(e){}
 }
 
 // ── выбор (корзина) ─────────────────────────────────────────
@@ -2587,14 +2638,14 @@ App.whToggleGroup = (gi, e) => {
 App.whClearSel = () => { WV.sel = {}; whRefreshSel(); };
 function whRefreshSel(){ if(S.view==='warehouse') VIEWS.warehouse.body(); }
 function selBar(){
-  const n = selCount(); if(!n) return '';
+  const n = selCount(); if(!n || !canOps()) return '';
   return `<div class="wh-selbar"><b>Выбрано: ${n}</b>
     <button class="btn sm" onclick="App.whAct('issue')">↗ На проект</button>
     <button class="btn sm ghost" onclick="App.whAct('transfer')">⇄ Переместить</button>
     <button class="btn sm ghost" onclick="App.whAct('return')">↙ Вернуть на склад</button>
     <button class="btn sm ghost" onclick="App.whAct('repair')">🔧 В ремонт</button>
     <button class="btn sm ghost" onclick="App.whPrint()">🏷 Бирки</button>
-    ${canStock()?`<button class="btn sm ghost" onclick="App.whAct('lost')">Утеряно</button><button class="btn sm ghost" onclick="App.whAct('off')">Списать</button>`:''}
+    ${canStock()?`<button class="btn sm ghost" onclick="App.whAct('lost')">Утеряно</button><button class="btn sm ghost" onclick="App.whAct('off')">Списать</button><button class="btn sm danger" onclick="App.whTrash()">🗑 Удалить</button>`:''}
     <span class="spacer"></span><button class="link-btn" onclick="App.whClearSel()">сбросить</button></div>`;
 }
 
@@ -2617,11 +2668,13 @@ VIEWS.warehouse = {
     const outN = S.wh.items.filter(i=>i.status==='out').length + S.wh.items.filter(isBulk).reduce((a,i)=>a+sumObj(i.out),0);
     return `<div class="wh-top">
         <button class="btn wh-scan" onclick="App.whScan()">📷 Сканировать</button>
+        ${!canOps()?'<span class="tag">только просмотр</span>':''}
         ${canStock()?`<button class="btn ghost" onclick="App.whAdd()">+ Добавить</button><button class="btn ghost" onclick="App.whImport()">⇪ Импорт из Excel</button>`:''}
         <span class="spacer"></span>
         <div class="search">🔍<input id="whSearch" placeholder="Номер, название, модель" value="${esc(WV.q)}" oninput="App.whSearch(this.value)"></div>
       </div>
       <div class="tabs">${[['items','Оборудование',''],['transit','В пути',tr],['projects','На проектах',outN],['log','Журнал','']]
+        .concat(canStock()?[['trash','Корзина',S.wh.trash.length]]:[]).concat(S.role==='owner'?[['audit','🔒 История','']]:[])
         .map(([k,l,n])=>`<button class="tab ${WV.tab===k?'on':''}" onclick="App.whTab('${k}')">${l}${n?` <span class="tab-n ${k==='transit'?'hot':''}">${n}</span>`:''}</button>`).join('')}</div>
       <div id="whBody"></div><div id="whSel"></div>`;
   },
@@ -2632,6 +2685,8 @@ VIEWS.warehouse = {
     if(WV.tab==='transit') whTransitTab(el);
     if(WV.tab==='projects') whProjectsTab(el);
     if(WV.tab==='log') whLogTab(el);
+    if(WV.tab==='trash') whTrashTab(el);
+    if(WV.tab==='audit') whAuditTab(el);
     $('whSel').innerHTML = selBar();
     if(S.param && WV.opened!==S.param && whItem(S.param)){ WV.opened = S.param; App.whItem(S.param); }
   }
@@ -2692,7 +2747,7 @@ function whItemsTab(el){
     const ids = items.map(i=>i.id), allSel = ids.every(id=>WV.sel[id]), someSel = ids.some(id=>WV.sel[id]);
     const open = WV.open[k] && !isBulk(it);
     body += `<tr class="m-row ${open?'open':''} ${someSel?'sel':''}" onclick="${isBulk(it)?`App.whItem('${esc(it.id)}')`:`App.whOpenGroup(${gi})`}">
-      <td class="c-chk"><button class="chk ${allSel?'on':''} ${someSel&&!allSel?'part':''}" onclick="App.whToggleGroup(${gi},event)" aria-label="Выбрать">${allSel?'✓':someSel&&!allSel?'–':''}</button></td>
+      <td class="c-chk"><button class="chk ${allSel?'on':''} ${someSel&&!allSel?'part':''} ${canOps()?'':'hidden'}" onclick="App.whToggleGroup(${gi},event)" aria-label="Выбрать">${allSel?'✓':someSel&&!allSel?'–':''}</button></td>
       <td class="c-name"><b>${esc(it.name)}</b>${it.model?`<span>${esc(it.model)}</span>`:''}${isBulk(it)?`<span class="unit">${esc(it.unit||'шт')} · партия</span>`:''}</td>
       ${sites.map(s => num(r.per[s.id], 'site')).join('')}
       ${num(r.out,'out')}${num(r.tr,'tr')}${num(r.rep,'rep')}
@@ -2723,7 +2778,7 @@ function groupRow(k, items, gi){
   const open = WV.open[k];
   return `<div class="wh-group ${open?'open':''}">
     <div class="wh-row group" onclick="App.whOpenGroup(${gi})">
-      <button class="chk ${allSel?'on':''} ${someSel&&!allSel?'part':''}" onclick="App.whToggleGroup(${gi},event)" aria-label="Выбрать все">${allSel?'✓':someSel?'–':''}</button>
+      <button class="chk ${allSel?'on':''} ${someSel&&!allSel?'part':''} ${canOps()?'':'hidden'}" onclick="App.whToggleGroup(${gi},event)" aria-label="Выбрать все">${allSel?'✓':someSel?'–':''}</button>
       <span class="wh-ic">${cat.ic}</span>
       <div class="wh-main"><div class="wh-name">${esc(it.name)}${it.model?` <span class="muted">· ${esc(it.model)}</span>`:''}</div>
         <div class="wh-sub">${esc(cat.label)} · ${items.length} ед.${sites?' · на складе: '+esc(sites):''}</div></div>
@@ -2737,7 +2792,7 @@ function unitRow(it, compact){
   if(isBulk(it)) return bulkRow(it);
   const cat = WH_CATS[it.cat] || WH_CATS.OT;
   return `<div class="wh-row" onclick="App.whItem('${esc(it.id)}')">
-    <button class="chk ${WV.sel[it.id]?'on':''}" onclick="App.whToggle('${esc(it.id)}',event)" aria-label="Выбрать">${WV.sel[it.id]?'✓':''}</button>
+    <button class="chk ${WV.sel[it.id]?'on':''} ${canOps()?'':'hidden'}" onclick="App.whToggle('${esc(it.id)}',event)" aria-label="Выбрать">${WV.sel[it.id]?'✓':''}</button>
     <span class="wh-inv">${esc(it.id)}</span>
     ${compact ? `<div class="wh-main"><div class="wh-name">${esc(whWhere(it))}</div><div class="wh-sub">${it.serial?'S/N '+esc(it.serial):''}${it.holder&&it.status==='out'?(it.serial?' · ':'')+'выдал(а) '+esc(uname(it.holder)):''}${it.note?((it.serial||it.holder)?' · ':'')+esc(it.note):''}</div></div>`
       : `<div class="wh-main"><div class="wh-name">${esc(it.name)}${it.model?` <span class="muted">· ${esc(it.model)}</span>`:''}</div>
@@ -2748,7 +2803,7 @@ function unitRow(it, compact){
 function bulkRow(it){
   const cat = WH_CATS[it.cat] || WH_CATS.OT;
   return `<div class="wh-row" onclick="App.whItem('${esc(it.id)}')">
-    <button class="chk ${WV.sel[it.id]?'on':''}" onclick="App.whToggle('${esc(it.id)}',event)" aria-label="Выбрать">${WV.sel[it.id]?'✓':''}</button>
+    <button class="chk ${WV.sel[it.id]?'on':''} ${canOps()?'':'hidden'}" onclick="App.whToggle('${esc(it.id)}',event)" aria-label="Выбрать">${WV.sel[it.id]?'✓':''}</button>
     <span class="wh-ic">${cat.ic}</span>
     <div class="wh-main"><div class="wh-name">${esc(it.name)}${it.model?` <span class="muted">· ${esc(it.model)}</span>`:''} <span class="tag">партия</span></div>
       <div class="wh-sub">${esc(cat.label)} · ${esc(whWhere(it))}</div></div>
@@ -2762,7 +2817,7 @@ function whTransitTab(el){
       <div class="card-h"><h3>${esc(siteName(m.from))} → ${esc(siteName(m.to))}</h3><span class="ws ws-transit">в пути</span></div>
       <div class="card-b"><p class="small muted">Отправил(а) ${esc(uname(m.by))} · ${esc(dlong(m.day))}, ${hhmm(m.at)}${m.note?' · '+esc(m.note):''}</p>
         <div class="wh-move-items">${(m.items||[]).map(x=>`<span class="tag">${esc(x.kind==='bulk'?x.name+' × '+x.qty:x.inv)}</span>`).join('')}</div>
-        <div class="row" style="margin-top:12px"><button class="btn" onclick="App.whAccept('${esc(m.id)}')">Принять на склад «${esc(siteName(m.to))}»</button></div></div>
+        <div class="row ${canOps()?'':'hidden'}" style="margin-top:12px"><button class="btn" onclick="App.whAccept('${esc(m.id)}')">Принять на склад «${esc(siteName(m.to))}»</button></div></div>
     </div>`).join('') : '<div class="empty" style="padding:40px">Ничего не едет. Когда кто-то отправит оборудование на другой склад, здесь появится приёмка.</div>';
 }
 function whProjectsTab(el){
@@ -2779,7 +2834,7 @@ function whProjectsTab(el){
       ${d!==null&&d<0?'<span class="tag red">проект прошёл — верните</span>':''}${p?`<span class="small muted">${esc(dlong(p.date))}</span>`:''}</div>
       <div class="card-b">${equipSummary(rows)}
         <div class="row" style="margin-top:12px">${p?`<button class="btn sm ghost" onclick="App.go('project','${esc(pid)}')">Открыть проект</button>`:''}
-        <button class="btn sm" onclick="App.whReturnProject('${esc(pid)}')">↙ Вернуть всё на склад</button></div></div></div>`;
+        ${canOps()?`<button class="btn sm" onclick="App.whReturnProject('${esc(pid)}')">↙ Вернуть всё на склад</button>`:''}</div></div></div>`;
   }).join('')}</div>` : '<div class="empty" style="padding:40px">Сейчас ничего не выдано на проекты.</div>';
 }
 function equipSummary(rows){
@@ -2814,7 +2869,7 @@ App.whItem = id => {
         <div class="row">${whPill(it)}<span class="tag">${cat.ic} ${esc(cat.label)}</span>${isBulk(it)?'<span class="tag">партия</span>':''}</div>
         <div class="wh-where">${esc(whWhere(it))}</div>
         ${it.holder && it.status==='out' ? `<div class="small muted">Выдал(а): ${esc(uname(it.holder))}</div>`:''}
-        <div class="row" style="margin-top:12px">
+        <div class="row ${canOps()?'':'hidden'}" style="margin-top:12px">
           ${isBulk(it) || (it.status||'in')==='in' ? `<button class="btn sm" onclick="App.whOne('issue')">↗ На проект</button><button class="btn sm ghost" onclick="App.whOne('transfer')">⇄ Переместить</button>`:''}
           ${isBulk(it) || ['out','repair','lost'].includes(it.status) ? `<button class="btn sm ${isBulk(it)?'ghost':''}" onclick="App.whOne('return')">↙ Вернуть на склад</button>`:''}
           ${it.status==='transit' ? `<button class="btn sm" onclick="App.whTab('transit');App.closeModal('whItemOverlay')">К приёмке</button>`:''}
@@ -2834,13 +2889,15 @@ App.whItem = id => {
     ${isBulk(it) && ed ? `<div class="field"><label class="lbl">Остаток по складам</label><div class="g3">${whSites().map(s=>`<label class="small">${esc(s.name)}<input class="inp" type="number" min="0" data-stock="${esc(s.id)}" value="${(it.stock||{})[s.id]||0}"></label>`).join('')}</div>
       <div class="small muted" style="margin-top:4px">Правь остаток после пересчёта. Для выдачи и перемещения используй кнопки выше.</div></div>`:''}
     <div class="field"><label class="lbl">Заметка</label><textarea class="inp" id="wiNote" rows="2" ${ed?'':'disabled'} placeholder="Комплектность, дефекты, где именно лежит">${esc(it.note||'')}</textarea></div>
-    ${canMoney()?`<div class="field"><label class="lbl">🔒 Закупочная стоимость${isBulk(it)?' за единицу':''}, ₽</label><input class="inp" id="wiCost" type="number" value="${esc(cost?cost.cost:'')}" style="max-width:220px"></div>`:''}
+    ${canCost()?`<div class="field"><label class="lbl">🔒 Закупочная стоимость${isBulk(it)?' за единицу':''}, ₽</label><input class="inp" id="wiCost" type="number" value="${esc(cost?cost.cost:'')}" style="max-width:220px"></div>`:''}
     <div class="sec-t" style="margin-top:8px">История</div>
+    ${S.role==='owner' ? (() => { const au = S.wh.audit.filter(a => (a.ids||[]).includes(it.id)).sort((a,b)=>b.at-a.at).slice(0,15);
+      return au.length ? `<div class="sec-t" style="margin-top:6px">🔒 Кто что менял</div>${au.map(a=>`<div class="li" style="cursor:default">${av(a.who,'sm')}<div class="li-main"><div class="li-t">${esc(uname(a.who))} ${esc(a.text)}</div><div class="li-s">${esc(dlong(a.day))}, ${hhmm(a.at)}</div></div></div>`).join('')}` : ''; })() : ''}
     ${hist.length ? hist.map(m => { const t = WH_MOVE[m.type]||{label:m.type}; const p = m.projectId && projBy(m.projectId); const x = (m.items||[]).find(y=>y.id===it.id);
       return `<div class="li" style="cursor:default"><div class="li-main"><div class="li-t">${esc(t.label)}${m.type==='transfer'?' '+esc(siteName(m.from))+' → '+esc(siteName(m.to)):''}${p?' · '+esc(p.name):''}${isBulk(it)&&x?' · '+x.qty+' '+esc(it.unit||'шт'):''}</div>
         <div class="li-s">${esc(uname(m.by))} · ${esc(dlong(m.day))}, ${hhmm(m.at)}${m.status==='transit'?' · в пути':''}</div></div></div>`; }).join('') : '<div class="empty">Движений пока не было</div>'}`;
   $('whItemTitle').textContent = it.name || it.id;
-  $('wiSave').classList.toggle('hidden', !(ed || canMoney()));
+  $('wiSave').classList.toggle('hidden', !(ed || canCost()));
   $('wiDel').classList.toggle('hidden', !ed);
   openModal('whItemOverlay');
 };
@@ -2848,20 +2905,94 @@ App.whOne = act => { const id = whEdit.id; App.closeModal('whItemOverlay'); WV.s
 App.whSaveItem = () => {
   const it = whEdit; if(!it) return;
   const jobs = [];
+  const changes = [];
   if(canStock()){
     const patch = { name:$('wiName').value.trim()||it.name, model:$('wiModel').value.trim(), cat:$('wiCat').value, note:$('wiNote').value.trim() };
     if(isBulk(it)){ patch.unit = $('wiUnit').value.trim()||'шт'; const st = {}; document.querySelectorAll('[data-stock]').forEach(i => { const n = Number(i.value)||0; if(n) st[i.dataset.stock] = n; }); patch.stock = st; }
     else patch.serial = $('wiSerial').value.trim();
-    jobs.push(DB.patchWh(it.id, patch));
+    const LBL = { name:'название', model:'модель', cat:'категорию', note:'заметку', unit:'единицу', serial:'серийный номер' };
+    Object.keys(LBL).forEach(k => { if(k in patch && String(patch[k]||'')!==String(it[k]||'')) changes.push(`${LBL[k]}: «${it[k]||'—'}» → «${patch[k]||'—'}»`); });
+    if(isBulk(it)){ whSites().forEach(sx => { const a = (it.stock||{})[sx.id]||0, b = patch.stock[sx.id]||0; if(a!==b) changes.push(`остаток ${sx.id}: ${a} → ${b}`); }); }
+    if(changes.length) jobs.push(DB.patchWh(it.id, patch));
   }
-  if(canMoney() && $('wiCost')){ const c = $('wiCost').value; if(String(c)!==String((S.wh.costs[it.id]||{}).cost||'')) jobs.push(DB.saveWhCost(it.id, { cost:c })); }
+  if(canCost() && $('wiCost')){ const c = $('wiCost').value, was = (S.wh.costs[it.id]||{}).cost||''; if(String(c)!==String(was)){ jobs.push(DB.saveWhCost(it.id, { cost:c })); changes.push(`стоимость: ${was||'—'} → ${c||'—'} ₽`); } }
   App.closeModal('whItemOverlay');
-  Promise.all(jobs).then(()=>toast('Сохранено','✅')).catch(()=>toast('Не получилось сохранить','❌'));
+  if(!jobs.length){ toast('Изменений нет'); return; }
+  Promise.all(jobs).then(()=>{ toast('Сохранено','✅'); whLog('edit', `изменил(а) ${it.id} «${it.name}»: ${changes.join('; ')}`, [it.id]); }).catch(()=>toast('Не получилось сохранить','❌'));
 };
-App.whDelete = () => {
-  const it = whEdit; if(!it || !confirm(`Удалить ${it.id} «${it.name}» из учёта насовсем? Если вещь сломалась или потерялась — лучше «Списать».`)) return;
-  App.closeModal('whItemOverlay');
-  DB.delWh(it.id).then(()=>toast('Удалено','🗑')).catch(()=>toast('Не получилось удалить','❌'));
+App.whDelete = () => { const it = whEdit; if(!it) return; App.closeModal('whItemOverlay'); WV.sel = { [it.id]:{ qty:1 } }; App.whTrash(); };
+App.whTrash = () => {
+  const ids = Object.keys(WV.sel).filter(id => whItem(id)); if(!ids.length) return;
+  const busy = ids.filter(id => ['out','transit'].includes(whItem(id).status));
+  if(!confirm(`Удалить ${ids.length} ${plural(ids.length,'позицию','позиции','позиций')} в корзину? ${TRASH_DAYS} дней её можно будет восстановить, потом удалится навсегда.${busy.length?`\n\nВнимание: ${busy.join(', ')} сейчас на проекте или в пути.`:''}`)) return;
+  const at = Date.now();
+  Promise.all(ids.map(id => DB.patchWh(id, { deleted:true, deletedAt:at, deletedBy:me() }))).then(() => {
+    toast(`В корзине: ${ids.length}. Восстановить можно ${TRASH_DAYS} дней`, '🗑');
+    whLog('delete', `удалил(а) в корзину: ${ids.slice(0,8).map(id => id+' «'+((whItem(id)||S.wh.trash.find(x=>x.id===id)||{}).name||'')+'»').join(', ')}${ids.length>8?' и ещё '+(ids.length-8):''}`, ids);
+  }).catch(()=>toast('Не получилось удалить','❌'));
+  WV.sel = {};
+};
+App.whRestore = id => {
+  const it = S.wh.trash.find(x=>x.id===id); if(!it) return;
+  DB.patchWh(id, { deleted:false, deletedAt:0, deletedBy:'' }).then(() => { toast('Восстановлено: '+id, '↩'); whLog('restore', `восстановил(а) из корзины ${id} «${it.name}»`, [id]); }).catch(()=>toast('Не получилось','❌'));
+};
+App.whPurge = id => {
+  const it = S.wh.trash.find(x=>x.id===id); if(!it || !confirm(`Удалить ${id} «${it.name}» навсегда? Вернуть будет нельзя.`)) return;
+  DB.delWh(id).then(() => { toast('Удалено навсегда','🗑'); whLog('purge', `удалил(а) навсегда ${id} «${it.name}»`, [id]); }).catch(()=>toast('Не получилось','❌'));
+};
+function whTrashTab(el){
+  const list = S.wh.trash.slice().sort((a,b)=>(b.deletedAt||0)-(a.deletedAt||0));
+  el.innerHTML = list.length ? `<p class="small muted" style="margin-bottom:10px">Удалённое хранится ${TRASH_DAYS} дней, потом исчезает навсегда.</p><div class="wh-list">${list.map(it => {
+    const left = Math.max(0, Math.ceil(TRASH_DAYS - (Date.now()-(it.deletedAt||Date.now()))/86400000));
+    return `<div class="wh-row" style="cursor:default"><span class="wh-inv">${esc(it.id)}</span>
+      <div class="wh-main"><div class="wh-name">${esc(it.name)}${it.model?` <span class="muted">· ${esc(it.model)}</span>`:''}</div>
+        <div class="wh-sub">удалил(а) ${esc(uname(it.deletedBy))} · ${it.deletedAt?esc(dshort(iso(new Date(it.deletedAt))))+', '+hhmm(it.deletedAt):''} · удалится через ${left} ${plural(left,'день','дня','дней')}</div></div>
+      <button class="btn sm" onclick="App.whRestore('${esc(it.id)}')">↩ Восстановить</button>
+      ${S.role==='owner'?`<button class="btn sm danger" onclick="App.whPurge('${esc(it.id)}')">Навсегда</button>`:''}</div>`; }).join('')}</div>`
+    : '<div class="empty" style="padding:40px">Корзина пуста</div>';
+}
+
+// ── история изменений (видит только руководитель) ─────────────
+const AU = { who:'all' };
+function whAuditTab(el){
+  const all = S.wh.audit.slice().sort((a,b)=>b.at-a.at);
+  const people = [...new Set(all.map(a=>a.who))];
+  const cards = people.map(em => { const mine = all.filter(a=>a.who===em); const last = mine[0];
+    const today = mine.filter(a=>a.day===iso()).length;
+    return `<button class="who-card ${AU.who===em?'on':''}" onclick="App.auWho('${esc(em)}')"><div class="row" style="flex-wrap:nowrap">${av(em)}<div style="min-width:0;flex:1;text-align:left"><b>${esc(uname(em))}</b>
+      <div class="small muted">${mine.length} ${plural(mine.length,'действие','действия','действий')}${today?' · сегодня '+today:''}</div></div></div>
+      <div class="who-now"><span>● ${esc(last.text)}</span><span class="muted">${esc(dshort(last.day))}, ${hhmm(last.at)}</span></div></button>`; }).join('');
+  const list = all.filter(a => AU.who==='all' || a.who===AU.who).slice(0,300);
+  let lastDay = '', feed = '';
+  list.forEach(a => {
+    if(a.day!==lastDay){ lastDay = a.day; feed += `<div class="grp-h" style="margin:16px 0 6px">${esc(dayTitle(a.day))}</div>`; }
+    const danger = ['delete','purge','off','lost'].includes(a.action);
+    feed += `<div class="feed-i t-${danger?'del':'move'}"><span class="feed-time">${hhmm(a.at)}</span><span class="feed-dot">${danger?'!':'•'}</span>
+      <div class="feed-main">${av(a.who,'sm')} <b>${esc(uname(a.who))}</b> ${esc(a.text)} <span class="tag ${danger?'red':''}">${esc(WH_AUDIT[a.action]||a.action)}</span></div></div>`;
+  });
+  const n = S.notify || {};
+  el.innerHTML = `<div class="info-box small">🔒 Этот раздел видишь только ты. Здесь каждое действие на складе: кто добавил, изменил, выдал, переместил, списал или удалил.</div>
+    ${people.length?`<div class="who-grid">${cards}</div>`:''}
+    <div class="card" style="margin-top:16px"><div class="card-h"><h3>Лента изменений</h3>${AU.who!=='all'?`<button class="chip on" onclick="App.auWho('all')">${esc(uname(AU.who))} ✕</button>`:''}</div>
+      <div class="card-b"><div class="feed">${feed || '<div class="empty">Пока ничего не происходило. История пишется с момента этого обновления.</div>'}</div></div></div>
+    <div class="card" style="margin-top:16px"><div class="card-h"><h3>Уведомления в Telegram</h3>${n.tgToken&&n.tgChat?'<span class="ws ws-in">включены</span>':'<span class="ws ws-off">выключены</span>'}</div><div class="card-b">
+      <p class="small muted" style="margin-bottom:10px">Каждое действие сотрудников на складе будет приходить тебе сообщением в Telegram. Внутри системы ты и так видишь их всплывающими уведомлениями.</p>
+      <div class="g2"><div class="field"><label class="lbl">Токен бота</label><input class="inp" id="tgToken" placeholder="123456:ABC-DEF…" value="${esc(n.tgToken||'')}"></div>
+        <div class="field"><label class="lbl">Твой chat id</label><input class="inp" id="tgChat" placeholder="например 123456789" value="${esc(n.tgChat||'')}"></div></div>
+      <label class="row small" style="margin-bottom:12px"><input type="checkbox" id="tgSelf" ${n.self?'checked':''}> Присылать и мои собственные действия</label>
+      <div class="row"><button class="btn sm" onclick="App.tgSave()">Сохранить</button><button class="btn sm ghost" onclick="App.tgTest()">Отправить тест</button></div>
+    </div></div>`;
+}
+App.auWho = w => { AU.who = AU.who===w ? 'all' : w; VIEWS.warehouse.body(); };
+App.tgSave = () => {
+  const d = { tgToken: $('tgToken').value.trim(), tgChat: $('tgChat').value.trim(), self: $('tgSelf').checked, whEvents: true };
+  DB.saveSettings(d).then(()=>{ S.notify = d; toast('Уведомления сохранены','✅'); VIEWS.warehouse.body(); }).catch(()=>toast('Не получилось сохранить — проверь правила Firestore','❌'));
+};
+App.tgTest = () => {
+  const n = { tgToken: $('tgToken').value.trim(), tgChat: $('tgChat').value.trim() };
+  if(!n.tgToken || !n.tgChat){ toast('Впиши токен и chat id','⚠️'); return; }
+  fetch('https://api.telegram.org/bot'+n.tgToken+'/sendMessage', { method:'POST', mode:'no-cors', body:new URLSearchParams({ chat_id:n.tgChat, text:'✅ Magic Projects: уведомления склада подключены' }) })
+    .then(()=>toast('Отправлено — проверь Telegram','📨')).catch(()=>toast('Не получилось отправить','❌'));
 };
 
 // ── операции ─────────────────────────────────────────────────
@@ -2957,7 +3088,9 @@ App.whActGo = () => {
   const what = `${lines.length} ${plural(lines.length,'позицию','позиции','позиций')}`;
   const txt = { issue:`выдал(а) ${what} на «${p?p.name:'проект'}»`, transfer:`отправил(а) ${what}: ${siteName(move.from)} → ${siteName(to)}`, return:`вернул(а) ${what} на склад «${siteName(to)}»`,
     repair:`отправил(а) в ремонт ${what}`, lost:`отметил(а) утерянными ${what}`, off:`списал(а) ${what}` }[type];
-  Promise.all(jobs).then(() => { toast({ issue:'Выдано на проект', transfer:'Отправлено — ждёт приёмки', return:'Вернули на склад', repair:'Отправлено в ремонт', lost:'Отмечено', off:'Списано' }[type], '📦'); logAct('stock', txt, { projectId }); })
+  const idsTxt = lines.slice(0,8).map(l => isBulk(l.it) ? `${l.it.name} ×${l.qty}` : l.it.id).join(', ') + (lines.length>8 ? ` и ещё ${lines.length-8}` : '');
+  Promise.all(jobs).then(() => { toast({ issue:'Выдано на проект', transfer:'Отправлено — ждёт приёмки', return:'Вернули на склад', repair:'Отправлено в ремонт', lost:'Отмечено', off:'Списано' }[type], '📦');
+    whLog(type, `${txt} (${idsTxt})${note?' · «'+note+'»':''}`, lines.map(l=>l.it.id), projectId); })
     .catch(e => { console.error(e); toast('Часть изменений не сохранилась — проверь правила Firestore','❌'); });
 };
 
@@ -2999,7 +3132,7 @@ function whAcceptGo(){
   App.closeModal('whActOverlay'); refresh();
   Promise.all(jobs).then(() => {
     if(missing.length) toast('Принято. Не пришло: '+missing.join(', '),'⚠️'); else { toast('Всё принято на склад «'+siteName(m.to)+'»','✅'); FX.fireworks(innerWidth/2, innerHeight/3, 1); }
-    logAct('stock', `принял(а) на склад «${siteName(m.to)}» перемещение из «${siteName(m.from)}»${missing.length?' (не пришло: '+missing.join(', ')+')':''}`, {});
+    whLog('accept', `принял(а) на склад «${siteName(m.to)}» перемещение из «${siteName(m.from)}»${missing.length?' (не пришло: '+missing.join(', ')+')':''}`, (m.items||[]).map(x=>x.id));
   }).catch(()=>toast('Не получилось сохранить приёмку','❌'));
 }
 App.whActConfirm = () => { if(WA && WA.type==='accept') whAcceptGo(); else App.whActGo(); };
@@ -3041,7 +3174,7 @@ App.whAddGo = async () => {
     if(canMoney() && cost) for(const d of docs) await DB.saveWhCost(d.id, { cost });
     await DB.saveMove({ id: uid('m'), type:'add', by: me(), at: Date.now(), day: iso(), to: site, status:'done', items: docs.map(d=>({ id:d.id, inv:d.id, name:d.name, kind:d.kind, qty: kind==='bulk'?n:1 })) });
     toast(kind==='bulk' ? `Добавлено: ${name} × ${n}` : `Добавлено ${docs.length} ед. · ${docs[0].id}${docs.length>1?' … '+docs[docs.length-1].id:''}`, '📦');
-    logAct('stock', `добавил(а) на склад «${siteName(site)}»: ${name} × ${n}`, {});
+    whLog('add', `добавил(а) на склад «${siteName(site)}»: ${name} × ${n}${kind!=='bulk'?' ('+docs[0].id+(docs.length>1?'…'+docs[docs.length-1].id:'')+')':''}`, docs.map(d=>d.id));
     if(kind!=='bulk' && confirm('Распечатать бирки для новых позиций?')) App.whPrint(docs.map(d=>d.id), docs);
   }catch(e){ console.error(e); toast('Не получилось добавить — проверь правила Firestore','❌'); }
 };
@@ -3117,7 +3250,7 @@ App.whImportGo = async () => {
   $('whImpGo').disabled = false; $('whImpGo').textContent = 'Загрузить на склад';
   App.closeModal('whImportOverlay');
   toast(ok ? `Загружено позиций: ${ok}` : 'Не получилось загрузить — проверь правила Firestore', ok ? '📦' : '❌');
-  logAct('stock', `загрузил(а) на склад список из Excel: ${ok} позиций`, {});
+  if(ok) whLog('import', `загрузил(а) на склад список из Excel: ${ok} позиций`, docs.map(d=>d.id));
 };
 
 // ── печать бирок ─────────────────────────────────────────────
@@ -3190,6 +3323,7 @@ App.scanClose = () => { stopCam(); App.closeModal('scanOverlay'); };
 App.scanDone = () => {
   stopCam(); App.closeModal('scanOverlay');
   if(!SC.found.length) return;
+  if(!canOps()){ WV.sel = {}; App.whItem(SC.found[SC.found.length-1]); return; }
   if(SC.projectId){ App.whAct('issue', { projectId: SC.projectId }); return; }
   if(SC.found.length===1){ App.whItem(SC.found[0]); return; }
   if(S.view!=='warehouse') App.go('warehouse'); else VIEWS.warehouse.body();
@@ -3201,8 +3335,8 @@ function projectEquipHTML(pid){
   const rows = [];
   S.wh.items.forEach(i => { if(isBulk(i)){ const q = (i.out||{})[pid]; if(q) rows.push({ it:i, qty:q }); } else if(i.status==='out' && i.projectId===pid) rows.push({ it:i, qty:1 }); });
   const units = rows.filter(r=>!isBulk(r.it)).length;
-  return `<div class="toolbar"><button class="btn" onclick="App.whPick('${esc(pid)}')">+ Выдать со склада</button><button class="btn ghost" onclick="App.whScan({projectId:'${esc(pid)}'})">📷 Сканировать на проект</button>
-      ${rows.length?`<button class="btn ghost" onclick="App.whReturnProject('${esc(pid)}')">↙ Вернуть всё на склад</button>`:''}<span class="spacer"></span>
+  return `<div class="toolbar">${canOps()?`<button class="btn" onclick="App.whPick('${esc(pid)}')">+ Выдать со склада</button><button class="btn ghost" onclick="App.whScan({projectId:'${esc(pid)}'})">📷 Сканировать на проект</button>`:''}
+      ${rows.length && canOps()?`<button class="btn ghost" onclick="App.whReturnProject('${esc(pid)}')">↙ Вернуть всё на склад</button>`:''}<span class="spacer"></span>
       <span class="small muted">${rows.length?`На проекте: ${units} ед.${rows.length-units?' + '+(rows.length-units)+' вид. расходников':''}`:''}</span></div>
     <div class="form-card">${rows.length ? equipSummary(rows) : '<div class="empty">Оборудование на этот проект ещё не выдано</div>'}</div>`;
 }
@@ -3292,6 +3426,8 @@ App.anaRange = (k, v) => { AV2[k] = v; VIEWS.analytics.body(); };
 // ═════════════════════════════════════════════════════════════
 function getNotifs(){
   const out = [];
+  if(S.role==='owner') (S.wh.audit||[]).filter(a => a.who!==me() && Date.now()-a.at < 86400000).sort((a,b)=>b.at-a.at).slice(0,12)
+    .forEach(a => out.push({ type: ['delete','purge','off','lost'].includes(a.action) ? 'urgent' : 'info', icon:'📦', title:`Склад · ${uname(a.who)} ${a.text}`, desc: hhmm(a.at)+' · '+(WH_AUDIT[a.action]||''), whAudit:true }));
   const RL = {3:'за 3 дня',7:'за неделю',14:'за 2 недели',30:'за месяц'};
   myOverdue().forEach(t => out.push({ type:'urgent', icon:'⏰', title:'Просрочена задача: '+t.title, desc:'Дедлайн был '+dlong(t.deadline), task:t.id }));
   (S.wh && S.wh.moves || []).filter(m => m.status==='transit').forEach(m => out.push({ type:'warn', icon:'📦', title:`Ждёт приёмки: ${siteName(m.from)} → ${siteName(m.to)}`, desc:`${(m.items||[]).length} поз. · отправил(а) ${uname(m.by)} ${dshort(m.day)}`, wh:true }));
@@ -3324,7 +3460,7 @@ VIEWS.notifs = {
   body(){
     const n = getNotifs();
     const groups = [['Срочно','urgent'],['Внимание','warn'],['Информация','info']];
-    $('view').innerHTML = groups.map(([t,k]) => { const l = n.filter(x=>x.type===k); return l.length ? `<div class="grp-h ${k==='urgent'?'red':''}" style="margin:16px 0 8px">${t} · ${l.length}</div>` + l.map(x => `<div class="notif ${k}" onclick="${x.wh?`App.whTab('transit')`:x.task?`App.openTask('${esc(x.task)}')`:x.client?`App.openClient('${esc(x.client)}')`:`App.go('project','${esc(x.id)}')`}"><span class="ic">${x.icon}</span><div><div class="t">${esc(x.title)}</div><div class="small muted">${esc(x.desc)}</div></div></div>`).join('') : ''; }).join('')
+    $('view').innerHTML = groups.map(([t,k]) => { const l = n.filter(x=>x.type===k); return l.length ? `<div class="grp-h ${k==='urgent'?'red':''}" style="margin:16px 0 8px">${t} · ${l.length}</div>` + l.map(x => `<div class="notif ${k}" onclick="${x.whAudit?`App.whTab('audit')`:x.wh?`App.whTab('transit')`:x.task?`App.openTask('${esc(x.task)}')`:x.client?`App.openClient('${esc(x.client)}')`:`App.go('project','${esc(x.id)}')`}"><span class="ic">${x.icon}</span><div><div class="t">${esc(x.title)}</div><div class="small muted">${esc(x.desc)}</div></div></div>`).join('') : ''; }).join('')
       || '<div class="empty" style="padding:50px">Всё спокойно — уведомлений нет 🎯</div>';
   }
 };
@@ -3484,12 +3620,19 @@ const OWNER_EMAILS = ["slavavladislava@gmail.com"];
 const ALLOWED_EMAILS = [
   "slavavladislava@gmail.com",
   "topgunychta@gmail.com",
-  "topgunteam@yandex.ru",
-  "mavrrita@yandex.ru",
   "mavrenkovaveronika@gmail.com",
   "9602457174dimitriy@gmail.com",
   "gainutdinovadiana15@gmail.com"
 ];
+
+// Новые люди с заранее настроенным доступом — карточка создаётся при входе владельца
+const PRESET_USERS = [
+  { email: "mcbaloo@gmail.com", name: "Максим Панкращенко", role: "pm", canMoney: true, wh: "view",
+    position: "Менеджер проектов ЛО", city: "Ленинградская область", responsibility: "Проекты в Ленинградской области" }
+];
+
+// Доступ закрыт — при входе владельца карточкам ставится «доступ закрыт»
+const REVOKED_EMAILS = ["topgunteam@yandex.ru", "mavrrita@yandex.ru"];
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -3518,7 +3661,7 @@ onAuthStateChanged(auth, async user => {
     if (s.exists()) profile = s.data();
   } catch (e) { /* правила не пустили — проверим по стартовому списку */ }
 
-  const allowed = isOwner || (profile ? profile.active !== false : ALLOWED_EMAILS.includes(email));
+  const allowed = isOwner || (!REVOKED_EMAILS.includes(email) && (profile ? profile.active !== false : ALLOWED_EMAILS.includes(email)));
   if (!allowed) {
     await signOut(auth);
     App.loginError('Доступ закрыт. Попроси Владиславу добавить тебя в раздел «Команда».');
@@ -3527,7 +3670,9 @@ onAuthStateChanged(auth, async user => {
   me = email;
   const role = isOwner ? 'owner' : ((profile && profile.role) || 'pm');
   const canMoney = role==='owner' || role==='partner' || !!(profile && profile.canMoney);
-  App.setUser({ email, role, canMoney, photo: user.photoURL || '',
+  const whFull = role==='owner' || role==='partner' || role==='assistant' || !!(profile && (profile.wh==='full' || (!profile.wh && profile.canMoney)));
+  const wh = whFull ? 'full' : ((profile && profile.wh) || 'ops');
+  App.setUser({ email, role, canMoney, wh, photo: user.photoURL || '',
     name: (profile && profile.name) || user.displayName || email.split('@')[0] });
 
   const admin = role === 'owner' || role === 'partner';
@@ -3536,7 +3681,9 @@ onAuthStateChanged(auth, async user => {
   subs.push(onSnapshot(collection(db, 'users'), snap => {
     const list = listOf(snap);
     App.onUsers(list);
-    if (isOwner && !bootstrapped) { bootstrapped = true; bootstrapUsers(list, user); }
+    if (isOwner && !bootstrapped) { bootstrapped = true; bootstrapUsers(list, user);
+      PRESET_USERS.forEach(u => { if (!list.find(x => x.id === u.email)) setDoc(doc(db, 'users', u.email), { ...u, active: true, phone: '', telegram: '', directions: [], createdAt: serverTimestamp() }).catch(()=>{}); });
+      REVOKED_EMAILS.forEach(em => { const u = list.find(x => x.id === em); if (u && u.active !== false) setDoc(doc(db, 'users', em), { active: false }, { merge: true }).catch(()=>{}); }); }
   }, logErr('users')));
 
   subs.push(onSnapshot(collection(db, 'projects'), snap => {
@@ -3562,7 +3709,13 @@ onAuthStateChanged(auth, async user => {
   }, logErr('whSites')));
   subs.push(onSnapshot(collection(db, 'whItems'), s => App.onWh('items', listOf(s)), logErr('whItems')));
   subs.push(onSnapshot(collection(db, 'whMoves'), s => App.onWh('moves', listOf(s)), logErr('whMoves')));
-  if (canMoney) subs.push(onSnapshot(collection(db, 'whCosts'), s => App.onWh('costs', listOf(s)), logErr('whCosts')));
+  subs.push(onSnapshot(doc(db, 'settings', 'notify'), s => App.onNotifySettings(s.exists() ? s.data() : {}), () => {}));
+  if (isOwner) {
+    const f = new Date(); f.setDate(f.getDate() - 60);
+    const fIso = f.getFullYear() + '-' + String(f.getMonth()+1).padStart(2,'0') + '-' + String(f.getDate()).padStart(2,'0');
+    subs.push(onSnapshot(query(collection(db, 'whAudit'), where('day', '>=', fIso)), s => App.onWh('audit', listOf(s)), logErr('whAudit')));
+  }
+  if (canMoney && whFull) subs.push(onSnapshot(collection(db, 'whCosts'), s => App.onWh('costs', listOf(s)), logErr('whCosts')));
   if (canMoney) subs.push(onSnapshot(collection(db, 'finance'), s => App.onFinance(listOf(s)), logErr('finance')));
   if (admin) {
     const from = new Date(); from.setDate(from.getDate() - 45);
@@ -3640,6 +3793,8 @@ window.DB = {
   },
   patchWh: (id, d) => updateDoc(doc(db, 'whItems', id), { ...d, ...stamp() }),
   delWh: id => deleteDoc(doc(db, 'whItems', id)),
+  audit: d => addDoc(collection(db, 'whAudit'), { ...d, who: me }),
+  saveSettings: d => setDoc(doc(db, 'settings', 'notify'), d, { merge: true }),
   saveMove: d => setDoc(doc(db, 'whMoves', d.id), d),
   patchMove: (id, d) => updateDoc(doc(db, 'whMoves', id), d),
   saveWhCost: (id, d) => setDoc(doc(db, 'whCosts', id), { ...d, ...stamp() }),
