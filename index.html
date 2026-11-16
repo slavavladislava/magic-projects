@@ -1106,6 +1106,7 @@ html[data-theme="light"] .pu-dir.hot{background:var(--hot-bg) padding-box,linear
         <option value="ops">Выдавать, перемещать, принимать</option>
         <option value="view">Только смотреть</option></select>
         <div class="small muted" style="margin-top:4px">Для партнёра и ассистента всегда полный.</div></div>
+      <label class="field row small" id="pfCrmWrap" style="font-weight:600"><input type="checkbox" id="pfCrm"> Доступ к продажам: заводит клиентов и двигает по этапам — без сумм, отчётов, аналитики и удаления</label>
       <label class="field row small" id="pfMoneyWrap" style="font-weight:600"><input type="checkbox" id="pfMoney"> Вносит суммы проектов (цена, аванс, расходы) — без аналитики и дашборда</label>
       <div class="field"><label class="lbl">За что отвечает</label><textarea class="inp" id="pfResp" placeholder="Закупки, наградная продукция, документы по тендерам…"></textarea></div>
       <div class="field"><label class="lbl">Направления (через запятую)</label><input class="inp" id="pfDirs" placeholder="Top Gun, Laserwar, ФФС МО, Корпоративный спорт"></div>
@@ -1307,7 +1308,9 @@ function dueTag(s, done){
   return `<span class="due ${cls}">⏰ ${esc(done ? dshort(s) : dueLabel(s))}</span>`;
 }
 const isAdmin = () => S.role==='owner' || S.role==='partner';
-const isCRM = () => isAdmin() || S.role==='sales';
+const isCRM = () => isAdmin() || S.role==='sales' || !!(S.user && S.user.crm);
+// «лёгкий» доступ к продажам: заводить клиентов и двигать по этапам, без сумм, отчётов, аналитики и удаления
+const crmLite = () => isCRM() && !isAdmin() && S.role!=='sales';
 const isAssistant = () => S.role==='assistant';
 const seesAll = () => isAdmin() || isAssistant();                  // видит задачи всей команды
 const canMoney = () => isAdmin() || !!(S.user && S.user.canMoney);  // вносит суммы проектов
@@ -2231,10 +2234,11 @@ App.deleteProject = () => {
 // ═════════════════════════════════════════════════════════════
 VIEWS.sales = {
   shell(){
-    return `<div class="tabs">${[['today','План на день'],['funnel','Воронка'],['list','Список'],['reports','Отчёты'],['analytics','Аналитика']]
+    if(crmLite() && !['today','funnel','list'].includes(CV.tab)) CV.tab = 'funnel';
+    return `<div class="tabs">${[['today','План на день'],['funnel','Воронка'],['list','Список'],...(crmLite()?[]:[['reports','Отчёты'],['analytics','Аналитика']])]
       .map(([k,l])=>`<button class="tab ${CV.tab===k?'on':''}" onclick="App.cvTab('${k}')">${l}</button>`).join('')}</div>
       ${CV.tab==='funnel'||CV.tab==='list'?`<div class="toolbar">${CV.tab==='list'?`<div class="search">🔍<input placeholder="Компания, контакт, телефон" value="${esc(CV.q)}" oninput="App.cvSearch(this.value)"></div>`:''}
-        <button class="btn" onclick="App.openClient(null)">+ Клиент</button><button class="btn ghost" onclick="App.openImport()">⇪ Импорт из Excel</button></div>`:''}
+        <button class="btn" onclick="App.openClient(null)">+ Клиент</button>${crmLite()?'':'<button class="btn ghost" onclick="App.openImport()">⇪ Импорт из Excel</button>'}</div>`:''}
       ${CV.tab==='reports'?`<div class="form-card" style="margin-bottom:16px"><div class="sec-t">Отчёт за сегодня, ${new Date().toLocaleDateString('ru-RU')}</div>
         <textarea class="inp" id="reportToday" rows="5" placeholder="Звонки, встречи, отправленные КП, договорённости…" oninput="App.cvReport(this.value)">${esc(CV.reportDraft)}</textarea>
         <div class="row" style="justify-content:flex-end;margin-top:10px"><button class="btn" onclick="App.submitReport()">Сохранить отчёт</button></div></div>`:''}
@@ -2249,7 +2253,7 @@ VIEWS.sales = {
     if(CV.tab==='analytics') return crmAnalytics(el);
   }
 };
-App.cvTab = t => { CV.tab = t; mount(); if(t==='reports') loadReports(); };
+App.cvTab = t => { if(crmLite() && !['today','funnel','list'].includes(t)) t = 'funnel'; CV.tab = t; mount(); if(t==='reports') loadReports(); };
 App.cvSearch = q => { CV.q = q; VIEWS.sales.body(); };
 App.cvReport = v => { CV.reportDraft = v; };
 function crmToday(el){
@@ -2270,9 +2274,9 @@ function crmToday(el){
       <div class="card"><div class="card-h"><h3>Задачи по клиентам</h3><button class="btn sm ghost" onclick="App.openTask(null,{column:'projects'})">+ Задача</button></div><div class="card-b">
         ${ctasks.length ? ctasks.sort((a,b)=>String(a.deadline||'9999').localeCompare(String(b.deadline||'9999'))).map(t=>taskRow(t,{showOwner:isAdmin()})).join('') : '<div class="empty">Нет открытых задач по клиентам</div>'}
       </div></div>
-      <div class="card"><div class="card-h"><h3>Итог дня</h3></div><div class="card-b">
+      ${crmLite()?'':`<div class="card"><div class="card-h"><h3>Итог дня</h3></div><div class="card-b">
         <p class="small muted" style="margin-bottom:10px">В конце дня запиши, что сделано: звонки, КП, договорённости.</p>
-        <button class="btn soft" onclick="App.cvTab('reports')">Написать отчёт</button></div></div>
+        <button class="btn soft" onclick="App.cvTab('reports')">Написать отчёт</button></div></div>`}
     </div></div>`;
 }
 function crmPlanRow(c){
@@ -2291,7 +2295,7 @@ function ccard(c){
     <button class="grip" title="Перетащить" onclick="event.stopPropagation()">⋮⋮</button>
     <div class="tt">${esc(c.company||c.contact||'Без названия')}</div>
     ${c.contact&&c.company?`<div class="td">${esc(c.contact)}${c.role?', '+esc(c.role):''}</div>`:''}
-    <div class="tm">${c.sum?`<b class="small">${money(c.sum)}</b>`:''}
+    <div class="tm">${c.sum&&!crmLite()?`<b class="small">${money(c.sum)}</b>`:''}
       ${c.nextDate?`<span class="due ${d<0?'over':d<=1?'today':'fut'}">${esc(c.nextStep?c.nextStep+' · ':'')}${esc(dshort(c.nextDate))}</span>`:''}
       ${nt?`<span class="tag">✅ ${nt}</span>`:''}</div>
   </div>`;
@@ -2301,7 +2305,7 @@ function crmFunnel(el){
     const items = S.clients.filter(c => (c.status||'new')===k);
     const sum = items.reduce((a,c)=>a+Number(c.sum||0),0);
     return `<div class="col" data-drop="${k}" data-dropkind="client">
-      <div class="col-h"><span class="dot" style="background:${CRM_ST[k].c}"></span><b>${CRM_ST[k].label}</b><span class="n">${items.length}</span>${sum?`<span class="small muted" style="margin-left:auto">${fmt(sum)} ₽</span>`:''}</div>
+      <div class="col-h"><span class="dot" style="background:${CRM_ST[k].c}"></span><b>${CRM_ST[k].label}</b><span class="n">${items.length}</span>${sum&&!crmLite()?`<span class="small muted" style="margin-left:auto">${fmt(sum)} ₽</span>`:''}</div>
       <div class="col-b">${items.map(ccard).join('') || '<div class="empty small">Пусто</div>'}</div></div>`;
   }).join('')}</div>`;
 }
@@ -2314,7 +2318,7 @@ function crmList(el){
     return `<div class="li" onclick="App.openClient('${esc(c.id)}')"><div class="li-main"><div class="li-t">${esc(c.company||c.contact||'Без названия')}</div>
       <div class="li-s">${esc([c.contact,c.phone].filter(Boolean).join(' · '))}</div></div>
       ${c.nextDate?`<span class="due ${daysUntil(c.nextDate)<0?'over':'fut'}">${esc(dshort(c.nextDate))}</span>`:''}
-      <span class="tag" style="color:${st.c}">${st.label}</span>${c.sum?`<b class="small">${money(c.sum)}</b>`:''}</div>`;
+      <span class="tag" style="color:${st.c}">${st.label}</span>${c.sum&&!crmLite()?`<b class="small">${money(c.sum)}</b>`:''}</div>`;
   }).join('') : '<div class="empty">Клиентов не найдено</div>'}</div></div>`;
 }
 function moveClient(id, status){
@@ -2366,7 +2370,8 @@ App.openClient = id => {
   const v = (k) => (c && c[k]) || '';
   ['Company','Contact','Role','Phone','Email','Social','Sum','NextStep','NextDate','Notes','RejectReason'].forEach(k => { $('cf'+k).value = v(k.charAt(0).toLowerCase()+k.slice(1)); });
   $('cfSource').value = v('source') || 'manual';
-  $('cfDel').classList.toggle('hidden', !c);
+  $('cfDel').classList.toggle('hidden', !c || crmLite());
+  const sw = $('cfSum').closest('.field'); if(sw) sw.classList.toggle('hidden', crmLite());
   renderClientStatus(); App.cTab('main'); renderActs();
   openModal('clientOverlay');
 };
@@ -2404,7 +2409,7 @@ App.saveClient = () => {
   const data = { ...(editClient||{}),
     id: editClient ? editClient.id : uid('c_'),
     company:g('cfCompany'), contact:g('cfContact'), role:g('cfRole'), phone:g('cfPhone'), email:g('cfEmail'), social:g('cfSocial'),
-    sum:g('cfSum'), source:$('cfSource').value, status:cStatus, nextStep:g('cfNextStep'), nextDate:g('cfNextDate'),
+    sum: crmLite() ? (editClient && editClient.sum !== undefined ? editClient.sum : '') : g('cfSum'), source:$('cfSource').value, status:cStatus, nextStep:g('cfNextStep'), nextDate:g('cfNextDate'),
     notes:g('cfNotes'), rejectReason: cStatus==='lost' ? g('cfRejectReason') : '', activities:cActs };
   delete data.updatedAt;
   if(!data.company && !data.contact){ toast('Укажи компанию или контакт','⚠️'); return; }
@@ -2415,7 +2420,7 @@ App.saveClient = () => {
   DB.saveClient(data).then(()=>toast(isNew?'Клиент добавлен':'Клиент сохранён','✅')).catch(()=>toast('Не получилось сохранить','❌'));
 };
 App.deleteClient = () => {
-  if(!editClient || !confirm('Удалить клиента?')) return;
+  if(!editClient || crmLite() || !confirm('Удалить клиента?')) return;
   const id = editClient.id; App.closeModal('clientOverlay');
   DB.deleteClient(id).then(()=>toast('Клиент удалён','🗑')).catch(()=>toast('Не получилось удалить','❌'));
 };
@@ -2522,6 +2527,8 @@ App.openPerson = email => {
   $('pfRole').value = (u && u.role && u.role!=='owner') ? u.role : 'pm';
   $('pfMoneyWrap').classList.toggle('hidden', !editableRole);
   $('pfMoney').checked = !!(u && u.canMoney);
+  $('pfCrmWrap').classList.toggle('hidden', !editableRole);
+  $('pfCrm').checked = !!(u && u.crm);
   $('pfWhWrap').classList.toggle('hidden', !editableRole);
   $('pfWh').value = (u && u.wh) || (u && u.canMoney ? 'full' : 'ops');
   $('pfHint').classList.toggle('hidden', !!u);
@@ -2541,7 +2548,7 @@ App.savePerson = () => {
     if(!editPerson){ data.role = $('pfRole').value; data.active = true; data.createdAt = iso(); }
     else if(editPerson.role!=='owner') data.role = $('pfRole').value;
     else data.role = 'owner';
-    if(data.role!=='owner'){ data.canMoney = $('pfMoney').checked; data.wh = $('pfWh').value; }
+    if(data.role!=='owner'){ data.canMoney = $('pfMoney').checked; data.wh = $('pfWh').value; data.crm = $('pfCrm').checked; }
   }
   App.closeModal('personOverlay');
   DB.saveUser(email, data).then(()=>toast(editPerson?'Профиль сохранён':'Добавлен(а) в команду: '+name,'✅')).catch(e=>{ console.error(e); toast('Не получилось сохранить — проверь правила Firestore','❌'); });
@@ -4370,11 +4377,12 @@ onAuthStateChanged(auth, async user => {
   const canMoney = role==='owner' || role==='partner' || !!(profile && profile.canMoney);
   const whFull = role==='owner' || role==='partner' || role==='assistant' || !!(profile && (profile.wh==='full' || (!profile.wh && profile.canMoney)));
   const wh = whFull ? 'full' : ((profile && profile.wh) || 'ops');
-  App.setUser({ email, role, canMoney, wh, photo: user.photoURL || '',
+  const crmLite = role !== 'owner' && role !== 'partner' && role !== 'sales' && !!(profile && profile.crm);
+  App.setUser({ email, role, canMoney, wh, crm: crmLite, photo: user.photoURL || '',
     name: (profile && profile.name) || user.displayName || email.split('@')[0] });
 
   const admin = role === 'owner' || role === 'partner';
-  const crm = admin || role === 'sales';
+  const crm = admin || role === 'sales' || crmLite;
 
   subs.push(onSnapshot(collection(db, 'users'), snap => {
     const list = listOf(snap);
