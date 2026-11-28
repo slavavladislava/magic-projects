@@ -1347,7 +1347,26 @@ function autoSt(p){
 }
 const projBy = id => S.projects.find(p => p.id===id);
 const projTasks = id => S.tasks.filter(t => t.projectId===id);
-const fin = id => S.finance[id] || {};
+const fin = id => S.finance[id] || (projectAccess.id === id ? projectAccess.finance : null) || {};
+let projectAccess = {};
+const projectGrant = () => projectAccess.id === PP.id ? projectAccess.grant || {} : {};
+const canViewProjectFinance = () => canMoney() || projectGrant().viewFinance === true;
+const canWriteProjectExpenses = () => canMoney() || projectGrant().writeExpenses === true;
+const projectExpenses = () => [
+  ...(canViewProjectFinance() ? fin(PP.id).expenseEntries || [] : []),
+  ...(projectAccess.id === PP.id ? projectAccess.expenses || [] : [])
+];
+const canChangeExpense = entry => canMoney() || (canWriteProjectExpenses() && entry.scoped && entry.author === me());
+App.onProjectAccess = (id, key, value) => {
+  if(projectAccess.id !== id) return;
+  projectAccess[key] = value;
+  if(key === 'grant') mount();
+  if(key === 'grants') renderProjectGrants();
+  if(key === 'expenses' || key === 'finance'){
+    if(PP.tab === 'expenses') renderExpenseSummary();
+    if(PP.tab === 'finance' && !canMoney()) renderPane();
+  }
+};
 function taskStats(list){
   const done = list.filter(t => t.column==='done').length;
   const over = list.filter(t => t.column!=='done' && t.deadline && daysUntil(t.deadline)<0).length;
@@ -1471,6 +1490,11 @@ function route(){
 }
 
 function mount(){
+  const id = S.view === 'project' && !PP.isNew ? PP.id : null;
+  if(projectAccess.id !== id){
+    projectAccess = { id };
+    window.DB?.watchProjectAccess(id, canMoney(), S.role === 'owner');
+  }
   $('pageTitle').textContent = S.view==='project' && PP.draft ? (PP.draft.name || 'Новый проект') : TITLES[S.view];
   const add = $('topAdd');
   const lbl = { projects:'+ Проект', sales:'+ Клиент', team: S.role==='owner' ? '+ Человек' : null, warehouse:null, pult:null, analytics:null, activity:null, plan:null, notifs:'+ Задача' }[S.view];
@@ -1942,7 +1966,8 @@ function loadDraft(){
 }
 function projTabs(){
   return [['board','Доска задач'],['details','Детали'],['acct','Бухгалтерия'],['equip','Оборудование'],['team','Команда и чек-лист'],['files','Файлы и обсуждение'],['remind','Напоминания']]
-    .concat(canMoney()?[['finance','🔒 Финансы'],['expenses','🔒 Расходы']]:[]);
+    .concat(canViewProjectFinance() ? [['finance','🔒 Финансы']] : [])
+    .concat(canViewProjectFinance() || canWriteProjectExpenses() ? [['expenses','🔒 Расходы']] : []);
 }
 VIEWS.project = {
   shell(){
@@ -2003,6 +2028,31 @@ function markDirty(){
 }
 App.revertProject = () => { PP.dirty = false; loadDraft(); mount(); };
 
+function renderProjectGrants(){
+  const el = $('projectFinanceGrants');
+  if(!el || S.role !== 'owner') return;
+  const grants = projectAccess.grants;
+  if(!grants){ el.textContent = projectAccess.grantsError ? 'Не удалось загрузить права проекта.' : 'Загрузка прав проекта…'; return; }
+  el.innerHTML = '<div class="sec-t">Доступ к финансам проекта</div>' + activeUsers()
+    .filter(u => !['owner','partner'].includes(u.role) && !u.canMoney)
+    .map(u => {
+      const grant = grants.find(g => g.id === u.id) || {};
+      return `<div class="item-row"><span class="t">${esc(u.name || u.id)}</span>
+        ${[['writeExpenses','Вносить расходы'],['viewFinance','Видеть финансы']].map(([key,label]) =>
+          `<label><input type="checkbox" data-email="${esc(u.id)}" data-key-name="${key}"
+            ${grant[key] ? 'checked' : ''} onchange="App.setProjectGrant(this)"> ${label}</label>`).join('')}</div>`;
+    }).join('');
+}
+App.setProjectGrant = async input => {
+  if(S.role !== 'owner' || !PP.id) return;
+  input.disabled = true;
+  try{
+    await DB.setProjectGrant(PP.id, input.dataset.email, input.dataset.keyName, input.checked);
+  }catch(error){
+    input.checked = !input.checked;
+    toast('Не удалось сохранить право. Проверь правила Firestore.', '⚠️');
+  }finally{ input.disabled = false; }
+};
 function renderPane(){
   const el = $('ppane'); if(!el) return;
   const p = PP.draft;
@@ -2064,7 +2114,9 @@ function renderPane(){
         <div class="form-card"><div class="sec-t">Чек-лист оборудования</div>
           ${(p.checks||[]).map((c,i)=>`<div class="subtask"><button class="chk ${c.d?'on':''}" onclick="App.pCheck(${i})">${c.d?'✓':''}</button><span class="t ${c.d?'done':''}">${esc(c.t)}</span><button class="rmv" onclick="App.pArrRm('checks',${i})">×</button></div>`).join('') || '<div class="empty">Список пуст</div>'}
           <div class="addrow" style="margin-top:8px"><input class="inp" id="pChkIn" placeholder="Добавить позицию" onkeydown="if(event.key==='Enter')App.pAddCheck()"><button class="btn ghost" onclick="App.pAddCheck()">+</button></div>
-        </div></div>`;
+        </div></div>
+        ${S.role === 'owner' && !PP.isNew ? '<div class="form-card" id="projectFinanceGrants" style="margin-top:12px"></div>' : ''}`;
+      renderProjectGrants();
       return;
     }
     case 'files': {
@@ -2099,22 +2151,37 @@ function renderPane(){
       return;
     }
     case 'expenses': {
-      if(!canMoney()){ el.innerHTML = ''; return; }
+      if(!canViewProjectFinance() && !canWriteProjectExpenses()){ el.innerHTML = ''; return; }
       if(PP.isNew){ el.innerHTML = '<div class="info-box">Сначала создай проект, чтобы добавить расходы.</div>'; return; }
-      el.innerHTML = `<form class="form-card" onsubmit="App.addProjectExpense(event)">
+      el.innerHTML = (canWriteProjectExpenses() ? `<form class="form-card" id="projectExpenseForm" onsubmit="App.saveProjectExpense(event)">
         <div class="g2">
           <div class="field"><label class="lbl" for="expensePurpose">Назначение</label><input class="inp" id="expensePurpose" name="purpose" required maxlength="200"></div>
           <div class="field"><label class="lbl" for="expenseAmount">Сумма, ₽</label><input class="inp" id="expenseAmount" name="amount" inputmode="decimal" required maxlength="16" placeholder="0,00"></div>
           <div class="field"><label class="lbl" for="expenseBuyer">Кто покупал (необязательно)</label><input class="inp" id="expenseBuyer" name="buyer" maxlength="150"></div>
           <div class="field"><label class="lbl" for="expenseVendor">Контрагент (необязательно)</label><input class="inp" id="expenseVendor" name="vendor" maxlength="150"></div>
         </div>
-        <button class="btn" type="submit">Добавить расход</button>
-      </form><div id="projectExpenseSummary" class="form-card" style="margin-top:12px" aria-live="polite"></div>`;
+        <div class="row">
+          <button class="btn" type="submit">Добавить расход</button>
+          <button class="btn ghost hidden" type="button" onclick="App.cancelExpenseEdit()">Отмена</button>
+        </div>
+      </form>` : '') + `<div id="projectExpenseSummary" class="form-card" style="margin-top:12px" aria-live="polite"></div>`;
       renderExpenseSummary();
       return;
     }
     case 'finance': {
-      if(!canMoney()){ el.innerHTML=''; return; }
+      if(!canViewProjectFinance()){ el.innerHTML=''; return; }
+      if(!canMoney()){
+        const f = fin(PP.id);
+        if(projectAccess.finance === undefined){
+          el.textContent = projectAccess.financeError ? 'Не удалось загрузить финансы проекта.' : 'Загрузка финансов…';
+          return;
+        }
+        el.innerHTML = `<div class="form-card"><div class="fin-grid">
+          ${[['price','Сумма проекта'],['advance','Аванс получен'],['expenses','Затраты (вручную)']].map(([key,label]) =>
+            `<div class="kpi"><div class="v">${money(f[key])}</div><div class="l">${label}</div></div>`).join('')}
+        </div></div>`;
+        return;
+      }
       const pr = Number(p.price||0), ad = Number(p.advance||0), ex = Number(p.expenses||0);
       if(!isAdmin()){
         el.innerHTML = `<div class="form-card"><div class="info-box">🔒 Суммы видят только руководитель, партнёр и ты. В списках проектов их нет.</div>
@@ -2136,12 +2203,17 @@ function renderPane(){
 }
 function renderExpenseSummary(){
   const el = $('projectExpenseSummary');
-  if(!el || !canMoney()) return;
-  if(S.expenseFinanceStatus !== 'ready'){
+  if(!el || (!canViewProjectFinance() && !canWriteProjectExpenses())) return;
+  if(projectAccess.expensesError || projectAccess.financeError){
+    el.textContent = 'Не удалось загрузить расходы проекта.';
+    return;
+  }
+  if(projectAccess.expenses === undefined || (canMoney() && S.expenseFinanceStatus !== 'ready')
+    || (!canMoney() && canViewProjectFinance() && projectAccess.finance === undefined)){
     el.textContent = S.expenseFinanceStatus === 'error' ? 'Не удалось загрузить расходы проекта.' : 'Загрузка расходов…';
     return;
   }
-  const entries = fin(PP.id).expenseEntries || [];
+  const entries = projectExpenses();
   const groups = new Map();
   let total = 0;
   for(const entry of entries){
@@ -2152,24 +2224,71 @@ function renderExpenseSummary(){
     groups.set(key, group);
   }
   const rows = [...groups.values()].sort((a,b) => b.amount-a.amount);
-  el.innerHTML = `<div class="kpi"><div class="v">${money(total/100)}</div><div class="l">Всего потрачено</div></div>
-    ${rows.length ? `<h3 style="margin:16px 0 10px">Расходы по назначениям</h3>
+  el.innerHTML = `${canViewProjectFinance() ? `<div class="kpi"><div class="v">${money(total/100)}</div><div class="l">Всего потрачено</div></div>` : ''}
+    ${rows.length && canViewProjectFinance() ? `<h3 style="margin:16px 0 10px">Расходы по назначениям</h3>
       ${rows.map(({label, amount}) => `<div style="margin-bottom:10px">
         <div class="row"><span>${esc(label)}</span><span class="spacer"></span><b>${money(amount/100)}</b></div>
         <div class="prog" aria-hidden="true"><div style="width:${amount/total*100}%"></div></div>
-      </div>`).join('')}
-      <h3 style="margin:16px 0 10px">История расходов</h3>
+      </div>`).join('')}` : ''}
+    ${entries.length ? `<h3 style="margin:16px 0 10px">История расходов</h3>
       ${[...entries].reverse().map(entry => `<div class="item-row">
         <div class="t"><b>${esc(entry.purpose)}</b>
           <div class="small muted">${[entry.buyer, entry.vendor].filter(Boolean).map(esc).join(' · ')}</div>
         </div><b>${money(entry.kopecks/100)}</b>
+        ${canChangeExpense(entry) ? `<div class="row">
+          <button class="btn sm ghost" data-expense-id="${esc(entry.id)}" onclick="App.editProjectExpense(this.dataset.expenseId)">Изменить</button>
+          <button class="btn sm ghost" data-expense-id="${esc(entry.id)}" onclick="App.deleteProjectExpense(this.dataset.expenseId)">Удалить</button>
+        </div>` : ''}
       </div>`).join('')}` : '<div class="empty">Расходов пока нет</div>'}`;
 }
-App.addProjectExpense = async event => {
+let expenseEdit = null;
+let expenseSaving = false;
+const expenseById = id => projectExpenses().find(entry => entry.id === id);
+
+function resetExpenseForm(form){
+  expenseEdit = null;
+  form.reset();
+  form.querySelector('[type="submit"]').textContent = 'Добавить расход';
+  form.querySelector('[type="button"]').classList.add('hidden');
+}
+App.cancelExpenseEdit = () => {
+  const form = $('projectExpenseForm');
+  if(form && !expenseSaving) resetExpenseForm(form);
+};
+App.editProjectExpense = id => {
+  const form = $('projectExpenseForm');
+  const entry = expenseById(id);
+  if(!form || !entry || !canChangeExpense(entry) || expenseSaving) return;
+  expenseEdit = { form, entry };
+  form.elements.purpose.value = entry.purpose;
+  form.elements.amount.value = (entry.kopecks/100).toFixed(2).replace('.', ',');
+  form.elements.buyer.value = entry.buyer || '';
+  form.elements.vendor.value = entry.vendor || '';
+  form.querySelector('[type="submit"]').textContent = 'Сохранить расход';
+  form.querySelector('[type="button"]').classList.remove('hidden');
+  form.elements.purpose.focus();
+};
+App.deleteProjectExpense = async id => {
+  const entry = expenseById(id);
+  if(!PP.id || !entry || !canChangeExpense(entry) || expenseSaving || !confirm('Удалить этот расход?')) return;
+  const projectId = PP.id;
+  expenseSaving = true;
+  try{
+    await DB.changeProjectExpense(projectId, entry, null);
+    if(expenseEdit?.entry.id === id && expenseEdit.form.isConnected) resetExpenseForm(expenseEdit.form);
+    toast('Расход удалён');
+  }catch(error){
+    toast(error.code === 'expense-conflict' ? 'Расход уже изменился. Проверь список и повтори.' : 'Не удалось удалить расход.', '⚠️');
+  }finally{
+    expenseSaving = false;
+  }
+};
+App.saveProjectExpense = async event => {
   event.preventDefault();
   const form = event.currentTarget;
   const button = form.querySelector('button[type="submit"]');
-  if(!canMoney() || !PP.id || PP.isNew || button.disabled) return;
+  if(!canWriteProjectExpenses() || !PP.id || PP.isNew || expenseSaving) return;
+  const previous = expenseEdit?.form === form ? expenseEdit.entry : null;
   const data = new FormData(form);
   const purpose = data.get('purpose').trim().replace(/\s+/g, ' ');
   const amount = data.get('amount').trim().replace(',', '.');
@@ -2178,17 +2297,25 @@ App.addProjectExpense = async event => {
     toast('Укажи назначение и положительную сумму с точностью до копеек', '⚠️');
     return;
   }
-  const entry = { id:uid('expense_'), purpose, kopecks, buyer:data.get('buyer').trim(), vendor:data.get('vendor').trim() };
+  const entry = { id:previous?.id || uid('expense_'), purpose, kopecks, buyer:data.get('buyer').trim(), vendor:data.get('vendor').trim() };
+  expenseSaving = true;
   button.disabled = true;
   try{
-    await DB.addProjectExpense(PP.id, entry);
-    form.reset();
-    toast('Расход добавлен');
+    if(previous) await DB.changeProjectExpense(PP.id, previous, entry);
+    else await DB.addProjectExpense(PP.id, entry);
+    if(form.isConnected) resetExpenseForm(form);
+    toast(previous ? 'Расход сохранён' : 'Расход добавлен');
   }catch(error){
     console.error('expense save', error);
-    toast('Не удалось сохранить расход. Проверь доступ и попробуй ещё раз.', '⚠️');
+    if(error.code === 'expense-conflict'){
+      if(form.isConnected) resetExpenseForm(form);
+      toast('Расход уже изменился. Открой актуальную запись.', '⚠️');
+    }else{
+      toast('Не удалось сохранить расход. Проверь доступ и попробуй ещё раз.', '⚠️');
+    }
   }finally{
     button.disabled = false;
+    expenseSaving = false;
   }
 };
 function lanesHTML(tl){
@@ -4383,7 +4510,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/fireba
 import { getAuth, GoogleAuthProvider, signInWithPopup, reauthenticateWithPopup, signInWithEmailAndPassword, signOut, onAuthStateChanged }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { getFirestore, collection, doc, setDoc, addDoc, updateDoc, deleteDoc, getDoc, getDocs, onSnapshot,
-  serverTimestamp, query, where, deleteField, writeBatch, arrayUnion, runTransaction }
+  serverTimestamp, query, where, deleteField, writeBatch, runTransaction }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -4425,6 +4552,7 @@ const App = window.App;
 
 let me = null;          // email текущего пользователя
 let subs = [];
+let projectSubs = [];
 let migrated = false;
 let bootstrapped = false;
 
@@ -4435,6 +4563,8 @@ const logErr = name => err => { console.error(name, err); App.onError(name, err)
 
 onAuthStateChanged(auth, async user => {
   unsubAll();
+  projectSubs.forEach(stop => stop());
+  projectSubs = [];
   if (!user) { me = null; App.showLogin(); return; }
   const email = (user.email || '').toLowerCase();
   const isOwner = OWNER_EMAILS.includes(email);
@@ -4561,12 +4691,78 @@ window.DB = {
   signInGoogle: () => signInWithPopup(auth, provider),
   signInEmail: (e, p) => signInWithEmailAndPassword(auth, e, p),
   signOut: () => signOut(auth),
+  watchProjectAccess: (id, globalMoney, owner) => {
+    projectSubs.forEach(stop => stop());
+    projectSubs = [];
+    if(!id || !me) return;
+    const emit = (key, value) => App.onProjectAccess(id, key, value);
+    const access = collection(db, 'projects', id, 'financeAccess');
+    const expenses = collection(db, 'projects', id, 'expenses');
+    let dataSubs = [];
+    projectSubs.push(() => dataSubs.forEach(stop => stop()));
+    const watchData = (grant = {}) => {
+      dataSubs.forEach(stop => stop());
+      dataSubs = [];
+      emit('financeError', false);
+      emit('expensesError', false);
+      emit('finance', undefined);
+      emit('expenses', undefined);
+      const view = globalMoney || grant.viewFinance === true;
+      if(view || grant.writeExpenses === true){
+        const source = view ? expenses : query(expenses, where('author', '==', me));
+        dataSubs.push(onSnapshot(source, { includeMetadataChanges:true }, snap => {
+          if(snap.metadata.fromCache) return;
+          emit('expenses', listOf(snap).sort((a,b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0)).map(d => ({ ...d, scoped:true })));
+        }, () => { emit('expensesError', true); emit('expenses', undefined); }));
+      }
+      if(view && !globalMoney) dataSubs.push(onSnapshot(doc(db, 'finance', id), { includeMetadataChanges:true }, snap => {
+        if(!snap.metadata.fromCache) emit('finance', snap.data() || {});
+      }, () => { emit('financeError', true); emit('finance', undefined); }));
+    };
+    if(owner) projectSubs.push(onSnapshot(access, snap => emit('grants', listOf(snap)), () => {
+      emit('grantsError', true); emit('grants', null);
+    }));
+    if(globalMoney) watchData();
+    else projectSubs.push(onSnapshot(doc(access, me), { includeMetadataChanges:true }, snap => {
+      if(snap.metadata.fromCache) return;
+      const grant = snap.data() || {};
+      watchData(grant);
+      emit('grant', grant);
+    }, () => { watchData(); emit('grant', {}); }));
+  },
+  setProjectGrant: (id, email, key, value) => setDoc(doc(db, 'projects', id, 'financeAccess', email), {
+    [key]: value
+  }, { merge:true }),
   saveProject: d => setDoc(doc(db, 'projects', d.id), { ...d, ...stamp() }),
   deleteProject: id => deleteDoc(doc(db, 'projects', id)),
   saveFinance: (id, d) => setDoc(doc(db, 'finance', id), { ...d, projectId: id, ...stamp() }, { merge: true }),
-  addProjectExpense: (id, entry) => setDoc(doc(db, 'finance', id), {
-    projectId: id, expenseEntries: arrayUnion(entry), ...stamp()
-  }, { merge: true }),
+  addProjectExpense: (id, entry) => {
+    const { id: expenseId, ...fields } = entry;
+    return setDoc(doc(db, 'projects', id, 'expenses', expenseId), {
+      ...fields, author: me, createdAt: serverTimestamp(), ...stamp()
+    });
+  },
+  changeProjectExpense: (id, previous, replacement) => runTransaction(db, async tx => {
+    const ref = previous.scoped ? doc(db, 'projects', id, 'expenses', previous.id) : doc(db, 'finance', id);
+    const snapshot = await tx.get(ref);
+    const fields = ['purpose','kopecks','buyer','vendor'];
+    if(previous.scoped){
+      if(!snapshot.exists() || fields.some(key => snapshot.data()[key] !== previous[key])){
+        throw Object.assign(new Error('Expense changed'), { code:'expense-conflict' });
+      }
+      if(replacement) tx.update(ref, { ...Object.fromEntries(fields.map(key => [key,replacement[key]])), ...stamp() });
+      else tx.delete(ref);
+      return;
+    }
+    const entries = snapshot.data()?.expenseEntries || [];
+    const index = entries.findIndex(entry => entry.id === previous.id);
+    if(index < 0 || ['purpose','kopecks','buyer','vendor'].some(key => entries[index][key] !== previous[key])){
+      throw Object.assign(new Error('Expense changed'), { code:'expense-conflict' });
+    }
+    if(replacement) entries.splice(index, 1, { ...entries[index], ...replacement });
+    else entries.splice(index, 1);
+    tx.update(ref, { expenseEntries: entries, ...stamp() });
+  }),
   deleteFinance: id => deleteDoc(doc(db, 'finance', id)),
   saveTask: d => setDoc(doc(db, 'tasks', d.id), { ...d, ...stamp() }),
   patchTask: (id, d) => updateDoc(doc(db, 'tasks', id), { ...d, ...stamp() }),
