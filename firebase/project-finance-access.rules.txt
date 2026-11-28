@@ -1,0 +1,62 @@
+// В Firebase Console замените действующий блок match /finance/{id}
+// этим фрагментом целиком. Остальные правила сохраните.
+// Фрагмент вставляется внутри match /databases/{database}/documents.
+
+    function projectExists(projectId) {
+      return exists(/databases/$(database)/documents/projects/$(projectId));
+    }
+    function projectPermission(projectId, key) {
+      let path = /databases/$(database)/documents/projects/$(projectId)/financeAccess/$(myEmail());
+      return exists(path) && get(path).data.get(key, false) == true;
+    }
+    function mayViewProjectFinance(projectId) {
+      return canMoney() || (isMember() && projectPermission(projectId, 'viewFinance'));
+    }
+    function mayWriteProjectExpenses(projectId) {
+      return canMoney() || (isMember() && projectPermission(projectId, 'writeExpenses'));
+    }
+
+    match /finance/{id} {
+      allow get: if canMoney() || (projectExists(id) && mayViewProjectFinance(id));
+      allow list, write: if canMoney();
+    }
+
+    match /projects/{projectId}/financeAccess/{email} {
+      function validGrant() {
+        let data = request.resource.data;
+        return data.keys().hasOnly(['viewFinance', 'writeExpenses'])
+          && data.get('viewFinance', false) is bool
+          && data.get('writeExpenses', false) is bool;
+      }
+      allow get: if projectExists(projectId) && (isOwner() || (isMember() && email == myEmail()));
+      allow list: if projectExists(projectId) && isOwner();
+      allow create, update: if isOwner() && projectExists(projectId) && validGrant();
+      allow delete: if isOwner();
+    }
+
+    match /projects/{projectId}/expenses/{expenseId} {
+      function validExpense() {
+        let data = request.resource.data;
+        let fields = ['author', 'createdAt', 'updatedAt', 'updatedBy', 'purpose', 'kopecks', 'buyer', 'vendor'];
+        return data.keys().hasAll(fields) && data.keys().hasOnly(fields)
+          && data.author is string && data.createdAt is timestamp
+          && data.updatedAt == request.time && data.updatedBy == myEmail()
+          && data.purpose is string && data.purpose.size() > 0 && data.purpose.size() <= 200
+          && data.kopecks is int && data.kopecks > 0 && data.kopecks <= 9007199254740991
+          && data.buyer is string && data.buyer.size() <= 150
+          && data.vendor is string && data.vendor.size() <= 150;
+      }
+      function mayChangeExpense() {
+        return canMoney() || (mayWriteProjectExpenses(projectId) && resource.data.author == myEmail());
+      }
+      allow get, list: if projectExists(projectId) && (
+        mayViewProjectFinance(projectId) ||
+        (mayWriteProjectExpenses(projectId) && resource.data.author == myEmail()));
+      allow create: if projectExists(projectId) && mayWriteProjectExpenses(projectId)
+        && validExpense() && request.resource.data.author == myEmail()
+        && request.resource.data.createdAt == request.time;
+      allow update: if projectExists(projectId) && mayChangeExpense() && validExpense()
+        && request.resource.data.author == resource.data.author
+        && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if projectExists(projectId) && mayChangeExpense();
+    }
