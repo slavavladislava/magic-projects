@@ -1373,10 +1373,15 @@ App.showLogin = () => {
 };
 App.loginError = msg => { const e = $('loginError'); e.textContent = msg; e.style.display = 'block'; App.showLogin(); };
 App.onError = (name) => {
-  if(name==='finance') toast('Нет доступа к финансам — обнови правила Firestore', '⚠️');
+  if(name==='finance'){
+    S.expenseFinanceStatus = 'error';
+    if(S.view==='project' && PP.tab==='expenses') renderExpenseSummary();
+    toast('Нет доступа к финансам — обнови правила Firestore', '⚠️');
+  }
 };
 App.setUser = u => {
   S.user = u; S.role = u.role;
+  S.expenseFinanceStatus = 'loading';
   TV.who = isAdmin() ? 'all' : 'mine';
   $('loginScreen').style.display = 'none';
   $('appShell').style.display = 'block';
@@ -1400,7 +1405,7 @@ App.onTasks = (set, list) => {
   refresh(); checkTaskReminders();
 };
 App.onClients = list => { S.clients = list; refresh(); };
-App.onFinance = list => { S.finance = {}; list.forEach(f => S.finance[f.id] = f); refresh(); };
+App.onFinance = list => { S.expenseFinanceStatus = 'ready'; S.finance = {}; list.forEach(f => S.finance[f.id] = f); refresh(); };
 App.onActivity = list => { S.activity = list; refresh(); };
 App.onNotifySettings = d => { S.notify = d || {}; };
 
@@ -1937,7 +1942,7 @@ function loadDraft(){
 }
 function projTabs(){
   return [['board','Доска задач'],['details','Детали'],['acct','Бухгалтерия'],['equip','Оборудование'],['team','Команда и чек-лист'],['files','Файлы и обсуждение'],['remind','Напоминания']]
-    .concat(canMoney()?[['finance','🔒 Финансы']]:[]);
+    .concat(canMoney()?[['finance','🔒 Финансы'],['expenses','🔒 Расходы']]:[]);
 }
 VIEWS.project = {
   shell(){
@@ -1946,7 +1951,7 @@ VIEWS.project = {
       <div id="phead"></div>
       <div class="tabs">${projTabs().map(([k,l])=>`<button class="tab ${PP.tab===k?'on':''}" onclick="App.pTab('${k}')">${l}</button>`).join('')}</div>
       <div id="ppane"></div>
-      <div class="savebar ${['board','equip'].includes(PP.tab)&&!PP.dirty?'hidden':''}" id="psave">
+      <div class="savebar ${['board','equip','expenses'].includes(PP.tab)&&!PP.isNew&&!PP.dirty?'hidden':''}" id="psave">
         ${PP.dirty?'<span class="small muted" style="align-self:center">Есть несохранённые изменения</span>':''}
         ${!PP.isNew?`<button class="btn ghost" onclick="App.revertProject()" ${PP.dirty?'':'disabled'}>Отменить</button>`:''}
         <button class="btn" onclick="App.saveProject()">${PP.isNew?'Создать проект':'Сохранить'}</button>
@@ -1960,6 +1965,7 @@ VIEWS.project = {
     if(!PP.dirty && !PP.isNew && fromData) loadDraft();
     renderPHead();
     if(!fromData || PP.tab==='board') renderPane();
+    else if(PP.tab==='expenses') renderExpenseSummary();
   }
 };
 function renderPHead(){
@@ -2092,6 +2098,21 @@ function renderPane(){
         <div class="addrow"><input class="inp" id="remText" placeholder="Например: проверить оборудование" onkeydown="if(event.key==='Enter')App.pAddRemind()"><button class="btn ghost" onclick="App.pAddRemind()">+</button></div></div>`;
       return;
     }
+    case 'expenses': {
+      if(!canMoney()){ el.innerHTML = ''; return; }
+      if(PP.isNew){ el.innerHTML = '<div class="info-box">Сначала создай проект, чтобы добавить расходы.</div>'; return; }
+      el.innerHTML = `<form class="form-card" onsubmit="App.addProjectExpense(event)">
+        <div class="g2">
+          <div class="field"><label class="lbl" for="expensePurpose">Назначение</label><input class="inp" id="expensePurpose" name="purpose" required maxlength="200"></div>
+          <div class="field"><label class="lbl" for="expenseAmount">Сумма, ₽</label><input class="inp" id="expenseAmount" name="amount" inputmode="decimal" required maxlength="16" placeholder="0,00"></div>
+          <div class="field"><label class="lbl" for="expenseBuyer">Кто покупал (необязательно)</label><input class="inp" id="expenseBuyer" name="buyer" maxlength="150"></div>
+          <div class="field"><label class="lbl" for="expenseVendor">Контрагент (необязательно)</label><input class="inp" id="expenseVendor" name="vendor" maxlength="150"></div>
+        </div>
+        <button class="btn" type="submit">Добавить расход</button>
+      </form><div id="projectExpenseSummary" class="form-card" style="margin-top:12px" aria-live="polite"></div>`;
+      renderExpenseSummary();
+      return;
+    }
     case 'finance': {
       if(!canMoney()){ el.innerHTML=''; return; }
       const pr = Number(p.price||0), ad = Number(p.advance||0), ex = Number(p.expenses||0);
@@ -2113,6 +2134,63 @@ function renderPane(){
     }
   }
 }
+function renderExpenseSummary(){
+  const el = $('projectExpenseSummary');
+  if(!el || !canMoney()) return;
+  if(S.expenseFinanceStatus !== 'ready'){
+    el.textContent = S.expenseFinanceStatus === 'error' ? 'Не удалось загрузить расходы проекта.' : 'Загрузка расходов…';
+    return;
+  }
+  const entries = fin(PP.id).expenseEntries || [];
+  const groups = new Map();
+  let total = 0;
+  for(const entry of entries){
+    const key = entry.purpose.toLocaleLowerCase('ru-RU');
+    const group = groups.get(key) || { label:entry.purpose, amount:0 };
+    group.amount += entry.kopecks;
+    total += entry.kopecks;
+    groups.set(key, group);
+  }
+  const rows = [...groups.values()].sort((a,b) => b.amount-a.amount);
+  el.innerHTML = `<div class="kpi"><div class="v">${money(total/100)}</div><div class="l">Всего потрачено</div></div>
+    ${rows.length ? `<h3 style="margin:16px 0 10px">Расходы по назначениям</h3>
+      ${rows.map(({label, amount}) => `<div style="margin-bottom:10px">
+        <div class="row"><span>${esc(label)}</span><span class="spacer"></span><b>${money(amount/100)}</b></div>
+        <div class="prog" aria-hidden="true"><div style="width:${amount/total*100}%"></div></div>
+      </div>`).join('')}
+      <h3 style="margin:16px 0 10px">История расходов</h3>
+      ${[...entries].reverse().map(entry => `<div class="item-row">
+        <div class="t"><b>${esc(entry.purpose)}</b>
+          <div class="small muted">${[entry.buyer, entry.vendor].filter(Boolean).map(esc).join(' · ')}</div>
+        </div><b>${money(entry.kopecks/100)}</b>
+      </div>`).join('')}` : '<div class="empty">Расходов пока нет</div>'}`;
+}
+App.addProjectExpense = async event => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const button = form.querySelector('button[type="submit"]');
+  if(!canMoney() || !PP.id || PP.isNew || button.disabled) return;
+  const data = new FormData(form);
+  const purpose = data.get('purpose').trim().replace(/\s+/g, ' ');
+  const amount = data.get('amount').trim().replace(',', '.');
+  const kopecks = Math.round(Number(amount)*100);
+  if(!purpose || !/^\d+(?:\.\d{1,2})?$/.test(amount) || !Number.isSafeInteger(kopecks) || kopecks <= 0){
+    toast('Укажи назначение и положительную сумму с точностью до копеек', '⚠️');
+    return;
+  }
+  const entry = { id:uid('expense_'), purpose, kopecks, buyer:data.get('buyer').trim(), vendor:data.get('vendor').trim() };
+  button.disabled = true;
+  try{
+    await DB.addProjectExpense(PP.id, entry);
+    form.reset();
+    toast('Расход добавлен');
+  }catch(error){
+    console.error('expense save', error);
+    toast('Не удалось сохранить расход. Проверь доступ и попробуй ещё раз.', '⚠️');
+  }finally{
+    button.disabled = false;
+  }
+};
 function lanesHTML(tl){
   if(!tl.length) return '<div class="empty" style="padding:30px">В проекте пока нет задач. Нажми «+ Задача в проект».</div>';
   const byOwner = {};
@@ -4305,7 +4383,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/fireba
 import { getAuth, GoogleAuthProvider, signInWithPopup, reauthenticateWithPopup, signInWithEmailAndPassword, signOut, onAuthStateChanged }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { getFirestore, collection, doc, setDoc, addDoc, updateDoc, deleteDoc, getDoc, getDocs, onSnapshot,
-  serverTimestamp, query, where, deleteField, writeBatch }
+  serverTimestamp, query, where, deleteField, writeBatch, arrayUnion, runTransaction }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -4463,9 +4541,11 @@ async function migrateFinance(list){
     KEYS.forEach(k => { if (p[k] !== undefined && p[k] !== null && p[k] !== '') fin[k] = p[k]; });
     try {
       const ref = doc(db, 'finance', p.id);
-      const ex = await getDoc(ref);
-      const merged = ex.exists() ? { ...fin, ...ex.data() } : fin; // уже внесённое в «Финансы» не затираем
-      await setDoc(ref, { ...merged, ...stamp() });
+      await runTransaction(db, async tx => {
+        const ex = await tx.get(ref);
+        const missing = Object.fromEntries(Object.entries(fin).filter(([key]) => !ex.exists() || !(key in ex.data())));
+        tx.set(ref, { ...missing, ...stamp() }, { merge: true });
+      });
       await updateDoc(doc(db, 'projects', p.id), { price: deleteField(), advance: deleteField(), expenses: deleteField() });
       moved++;
     } catch (e) {
@@ -4483,7 +4563,10 @@ window.DB = {
   signOut: () => signOut(auth),
   saveProject: d => setDoc(doc(db, 'projects', d.id), { ...d, ...stamp() }),
   deleteProject: id => deleteDoc(doc(db, 'projects', id)),
-  saveFinance: (id, d) => setDoc(doc(db, 'finance', id), { ...d, projectId: id, ...stamp() }),
+  saveFinance: (id, d) => setDoc(doc(db, 'finance', id), { ...d, projectId: id, ...stamp() }, { merge: true }),
+  addProjectExpense: (id, entry) => setDoc(doc(db, 'finance', id), {
+    projectId: id, expenseEntries: arrayUnion(entry), ...stamp()
+  }, { merge: true }),
   deleteFinance: id => deleteDoc(doc(db, 'finance', id)),
   saveTask: d => setDoc(doc(db, 'tasks', d.id), { ...d, ...stamp() }),
   patchTask: (id, d) => updateDoc(doc(db, 'tasks', id), { ...d, ...stamp() }),
