@@ -1357,16 +1357,6 @@ const projectExpenses = () => [
   ...(projectAccess.id === PP.id ? projectAccess.expenses || [] : [])
 ];
 const canChangeExpense = entry => canMoney() || (canWriteProjectExpenses() && entry.scoped && entry.author === me());
-App.onProjectAccess = (id, key, value) => {
-  if(projectAccess.id !== id) return;
-  projectAccess[key] = value;
-  if(key === 'grant') mount();
-  if(key === 'grants') renderProjectGrants();
-  if(key === 'expenses' || key === 'finance'){
-    if(PP.tab === 'expenses') renderExpenseSummary();
-    if(PP.tab === 'finance' && !canMoney()) renderPane();
-  }
-};
 function taskStats(list){
   const done = list.filter(t => t.column==='done').length;
   const over = list.filter(t => t.column!=='done' && t.deadline && daysUntil(t.deadline)<0).length;
@@ -1384,6 +1374,16 @@ function upcomingProjects(){
 //  ДАННЫЕ ИЗ FIREBASE
 // ═════════════════════════════════════════════════════════════
 const App = window.App = {};
+App.onProjectAccess = (id, key, value) => {
+  if(projectAccess.id !== id) return;
+  projectAccess[key] = value;
+  if(key === 'grant') mount();
+  if(key === 'grants') renderProjectGrants();
+  if(key === 'expenses' || key === 'finance'){
+    if(PP.tab === 'expenses') renderExpenseSummary();
+    if(PP.tab === 'finance' && !canMoney()) renderPane();
+  }
+};
 App.toast = toast;
 App.ready = () => {};
 App.showLogin = () => {
