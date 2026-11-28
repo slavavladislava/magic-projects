@@ -2101,14 +2101,17 @@ function renderPane(){
     case 'expenses': {
       if(!canMoney()){ el.innerHTML = ''; return; }
       if(PP.isNew){ el.innerHTML = '<div class="info-box">Сначала создай проект, чтобы добавить расходы.</div>'; return; }
-      el.innerHTML = `<form class="form-card" onsubmit="App.addProjectExpense(event)">
+      el.innerHTML = `<form class="form-card" id="projectExpenseForm" onsubmit="App.saveProjectExpense(event)">
         <div class="g2">
           <div class="field"><label class="lbl" for="expensePurpose">Назначение</label><input class="inp" id="expensePurpose" name="purpose" required maxlength="200"></div>
           <div class="field"><label class="lbl" for="expenseAmount">Сумма, ₽</label><input class="inp" id="expenseAmount" name="amount" inputmode="decimal" required maxlength="16" placeholder="0,00"></div>
           <div class="field"><label class="lbl" for="expenseBuyer">Кто покупал (необязательно)</label><input class="inp" id="expenseBuyer" name="buyer" maxlength="150"></div>
           <div class="field"><label class="lbl" for="expenseVendor">Контрагент (необязательно)</label><input class="inp" id="expenseVendor" name="vendor" maxlength="150"></div>
         </div>
-        <button class="btn" type="submit">Добавить расход</button>
+        <div class="row">
+          <button class="btn" type="submit">Добавить расход</button>
+          <button class="btn ghost hidden" type="button" onclick="App.cancelExpenseEdit()">Отмена</button>
+        </div>
       </form><div id="projectExpenseSummary" class="form-card" style="margin-top:12px" aria-live="polite"></div>`;
       renderExpenseSummary();
       return;
@@ -2163,13 +2166,60 @@ function renderExpenseSummary(){
         <div class="t"><b>${esc(entry.purpose)}</b>
           <div class="small muted">${[entry.buyer, entry.vendor].filter(Boolean).map(esc).join(' · ')}</div>
         </div><b>${money(entry.kopecks/100)}</b>
+        <div class="row">
+          <button class="btn sm ghost" data-expense-id="${esc(entry.id)}" onclick="App.editProjectExpense(this.dataset.expenseId)">Изменить</button>
+          <button class="btn sm ghost" data-expense-id="${esc(entry.id)}" onclick="App.deleteProjectExpense(this.dataset.expenseId)">Удалить</button>
+        </div>
       </div>`).join('')}` : '<div class="empty">Расходов пока нет</div>'}`;
 }
-App.addProjectExpense = async event => {
+let expenseEdit = null;
+let expenseSaving = false;
+const expenseById = id => (fin(PP.id).expenseEntries || []).find(entry => entry.id === id);
+
+function resetExpenseForm(form){
+  expenseEdit = null;
+  form.reset();
+  form.querySelector('[type="submit"]').textContent = 'Добавить расход';
+  form.querySelector('[type="button"]').classList.add('hidden');
+}
+App.cancelExpenseEdit = () => {
+  const form = $('projectExpenseForm');
+  if(form && !expenseSaving) resetExpenseForm(form);
+};
+App.editProjectExpense = id => {
+  const form = $('projectExpenseForm');
+  const entry = expenseById(id);
+  if(!canMoney() || !form || !entry || expenseSaving) return;
+  expenseEdit = { form, entry };
+  form.elements.purpose.value = entry.purpose;
+  form.elements.amount.value = (entry.kopecks/100).toFixed(2).replace('.', ',');
+  form.elements.buyer.value = entry.buyer || '';
+  form.elements.vendor.value = entry.vendor || '';
+  form.querySelector('[type="submit"]').textContent = 'Сохранить расход';
+  form.querySelector('[type="button"]').classList.remove('hidden');
+  form.elements.purpose.focus();
+};
+App.deleteProjectExpense = async id => {
+  const entry = expenseById(id);
+  if(!canMoney() || !PP.id || !entry || expenseSaving || !confirm('Удалить этот расход?')) return;
+  const projectId = PP.id;
+  expenseSaving = true;
+  try{
+    await DB.changeProjectExpense(projectId, entry, null);
+    if(expenseEdit?.entry.id === id && expenseEdit.form.isConnected) resetExpenseForm(expenseEdit.form);
+    toast('Расход удалён');
+  }catch(error){
+    toast(error.code === 'expense-conflict' ? 'Расход уже изменился. Проверь список и повтори.' : 'Не удалось удалить расход.', '⚠️');
+  }finally{
+    expenseSaving = false;
+  }
+};
+App.saveProjectExpense = async event => {
   event.preventDefault();
   const form = event.currentTarget;
   const button = form.querySelector('button[type="submit"]');
-  if(!canMoney() || !PP.id || PP.isNew || button.disabled) return;
+  if(!canMoney() || !PP.id || PP.isNew || expenseSaving) return;
+  const previous = expenseEdit?.form === form ? expenseEdit.entry : null;
   const data = new FormData(form);
   const purpose = data.get('purpose').trim().replace(/\s+/g, ' ');
   const amount = data.get('amount').trim().replace(',', '.');
@@ -2178,17 +2228,25 @@ App.addProjectExpense = async event => {
     toast('Укажи назначение и положительную сумму с точностью до копеек', '⚠️');
     return;
   }
-  const entry = { id:uid('expense_'), purpose, kopecks, buyer:data.get('buyer').trim(), vendor:data.get('vendor').trim() };
+  const entry = { id:previous?.id || uid('expense_'), purpose, kopecks, buyer:data.get('buyer').trim(), vendor:data.get('vendor').trim() };
+  expenseSaving = true;
   button.disabled = true;
   try{
-    await DB.addProjectExpense(PP.id, entry);
-    form.reset();
-    toast('Расход добавлен');
+    if(previous) await DB.changeProjectExpense(PP.id, previous, entry);
+    else await DB.addProjectExpense(PP.id, entry);
+    if(form.isConnected) resetExpenseForm(form);
+    toast(previous ? 'Расход сохранён' : 'Расход добавлен');
   }catch(error){
     console.error('expense save', error);
-    toast('Не удалось сохранить расход. Проверь доступ и попробуй ещё раз.', '⚠️');
+    if(error.code === 'expense-conflict'){
+      if(form.isConnected) resetExpenseForm(form);
+      toast('Расход уже изменился. Открой актуальную запись.', '⚠️');
+    }else{
+      toast('Не удалось сохранить расход. Проверь доступ и попробуй ещё раз.', '⚠️');
+    }
   }finally{
     button.disabled = false;
+    expenseSaving = false;
   }
 };
 function lanesHTML(tl){
@@ -4567,6 +4625,18 @@ window.DB = {
   addProjectExpense: (id, entry) => setDoc(doc(db, 'finance', id), {
     projectId: id, expenseEntries: arrayUnion(entry), ...stamp()
   }, { merge: true }),
+  changeProjectExpense: (id, previous, replacement) => runTransaction(db, async tx => {
+    const ref = doc(db, 'finance', id);
+    const snapshot = await tx.get(ref);
+    const entries = snapshot.data()?.expenseEntries || [];
+    const index = entries.findIndex(entry => entry.id === previous.id);
+    if(index < 0 || ['purpose','kopecks','buyer','vendor'].some(key => entries[index][key] !== previous[key])){
+      throw Object.assign(new Error('Expense changed'), { code:'expense-conflict' });
+    }
+    if(replacement) entries.splice(index, 1, { ...entries[index], ...replacement });
+    else entries.splice(index, 1);
+    tx.update(ref, { expenseEntries: entries, ...stamp() });
+  }),
   deleteFinance: id => deleteDoc(doc(db, 'finance', id)),
   saveTask: d => setDoc(doc(db, 'tasks', d.id), { ...d, ...stamp() }),
   patchTask: (id, d) => updateDoc(doc(db, 'tasks', id), { ...d, ...stamp() }),
